@@ -11,26 +11,36 @@ class BodyStrengthMap extends StatelessWidget {
   final Set<String> trainedMuscleGroups;
   final bool highlightFullBody;
 
-  static const double _bodyWidth = 315;
+  static const double _singleBodyWidth = 148;
 
-  static const Set<String> _allBodyParts = {
+  static const Set<String> _allFrontBodyParts = {
     'neck',
     'shoulder',
     'chest',
     'arm',
     'abs',
+    'leg',
+  };
+
+  static const Set<String> _allBackBodyParts = {
+    'neck',
+    'shoulder',
     'back',
+    'arm',
     'butt',
     'leg',
   };
 
   @override
   Widget build(BuildContext context) {
-    final selectedParts = highlightFullBody
-        ? _allBodyParts
+    final selection = highlightFullBody
+        ? const _BodyPartSelection(
+            frontParts: _allFrontBodyParts,
+            backParts: _allBackBodyParts,
+          )
         : _selectedBodyPartsFromMuscleGroups();
 
-    final hasFocus = selectedParts.isNotEmpty;
+    final hasFocus = selection.hasFocus;
 
     return Container(
       width: double.infinity,
@@ -40,11 +50,11 @@ class BodyStrengthMap extends StatelessWidget {
         color: const Color(0xFF061018),
         borderRadius: BorderRadius.circular(28),
         border: Border.all(
-          color: const Color(0xFF00E5FF).withOpacity(0.18),
+          color: const Color(0xFF00E5FF).withValues(alpha: 0.18),
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00E5FF).withOpacity(0.14),
+            color: const Color(0xFF00E5FF).withValues(alpha: 0.14),
             blurRadius: 34,
             spreadRadius: 2,
           ),
@@ -71,10 +81,10 @@ class BodyStrengthMap extends StatelessWidget {
                     center: Alignment.center,
                     radius: 0.9,
                     colors: [
-                      const Color(0xFF00E5FF).withOpacity(
-                        hasFocus ? 0.18 : 0.08,
+                      const Color(0xFF00E5FF).withValues(
+                        alpha: hasFocus ? 0.18 : 0.08,
                       ),
-                      const Color(0xFF071018).withOpacity(0.30),
+                      const Color(0xFF071018).withValues(alpha: 0.30),
                       Colors.transparent,
                     ],
                   ),
@@ -82,101 +92,111 @@ class BodyStrengthMap extends StatelessWidget {
               ),
             ),
           ),
-          SizedBox(
-            width: _bodyWidth,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // Basis-Layer:
-                // Alle Körperteile dunkel, Kopf bleibt durch unselectedColor schwarz.
-                BodyChart(
-                  selectedParts: _allBodyParts,
-                  selectedColor: const Color(0xFF111A24),
-                  unselectedColor: const Color(0xFF050A0F),
-                  viewType: BodyViewType.both,
-                  width: _bodyWidth,
-                ),
-
-                // Fokus-Layer:
-                // Heute trainierte Muskelgruppen leuchten blau.
-                if (selectedParts.isNotEmpty)
-                  BodyChart(
-                    selectedParts: selectedParts,
-                    selectedColor: const Color(0xFF00E5FF),
-                    unselectedColor: Colors.transparent,
-                    viewType: BodyViewType.both,
-                    width: _bodyWidth,
-                  ),
-
-                if (selectedParts.isNotEmpty)
-                  IgnorePointer(
-                    child: Container(
-                      width: _bodyWidth * 0.95,
-                      height: _bodyWidth * 1.35,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(999),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF00E5FF).withOpacity(0.28),
-                            blurRadius: highlightFullBody ? 58 : 44,
-                            spreadRadius: highlightFullBody ? 8 : 4,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _BodySideChart(
+                viewType: BodyViewType.front,
+                baseParts: _allFrontBodyParts,
+                selectedParts: selection.frontParts,
+                width: _singleBodyWidth,
+              ),
+              const SizedBox(width: 8),
+              _BodySideChart(
+                viewType: BodyViewType.back,
+                baseParts: _allBackBodyParts,
+                selectedParts: selection.backParts,
+                width: _singleBodyWidth,
+              ),
+            ],
           ),
+          if (hasFocus)
+            IgnorePointer(
+              child: Container(
+                width: _singleBodyWidth * 2.15,
+                height: _singleBodyWidth * 1.95,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF00E5FF).withValues(alpha: 0.28),
+                      blurRadius: highlightFullBody ? 58 : 44,
+                      spreadRadius: highlightFullBody ? 8 : 4,
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Set<String> _selectedBodyPartsFromMuscleGroups() {
-    final selectedParts = <String>{};
+  _BodyPartSelection _selectedBodyPartsFromMuscleGroups() {
+    final frontParts = <String>{};
+    final backParts = <String>{};
 
     for (final muscleGroup in trainedMuscleGroups) {
-      selectedParts.addAll(_bodyPartsForMuscleGroup(muscleGroup));
+      final selection = _bodyPartsForMuscleGroup(muscleGroup);
+      frontParts.addAll(selection.frontParts);
+      backParts.addAll(selection.backParts);
     }
 
-    return selectedParts;
+    return _BodyPartSelection(
+      frontParts: frontParts,
+      backParts: backParts,
+    );
   }
 
-  Set<String> _bodyPartsForMuscleGroup(String muscleGroup) {
+  _BodyPartSelection _bodyPartsForMuscleGroup(String muscleGroup) {
     final normalized = _normalize(muscleGroup);
 
     if (normalized.contains('full') ||
         normalized.contains('fullbody') ||
         normalized.contains('ganzkoerper') ||
         normalized.contains('ganzkörper')) {
-      return _allBodyParts;
+      return const _BodyPartSelection(
+        frontParts: _allFrontBodyParts,
+        backParts: _allBackBodyParts,
+      );
     }
 
     if (normalized.contains('push')) {
-      return {'chest', 'shoulder', 'arm'};
+      return const _BodyPartSelection(
+        frontParts: {'chest', 'shoulder'},
+        backParts: {'arm'},
+      );
     }
 
     if (normalized.contains('pull')) {
-      return {'back', 'arm'};
+      return const _BodyPartSelection(
+        frontParts: {'arm'},
+        backParts: {'back'},
+      );
     }
 
     if (normalized.contains('upper') ||
         normalized.contains('oberkoerper') ||
         normalized.contains('oberkörper')) {
-      return {'shoulder', 'chest', 'arm', 'abs', 'back'};
+      return const _BodyPartSelection(
+        frontParts: {'shoulder', 'chest', 'arm', 'abs'},
+        backParts: {'shoulder', 'back', 'arm'},
+      );
     }
 
     if (normalized.contains('lower') ||
         normalized.contains('unterkoerper') ||
         normalized.contains('unterkörper')) {
-      return {'leg', 'butt'};
+      return const _BodyPartSelection(
+        frontParts: {'leg'},
+        backParts: {'leg', 'butt'},
+      );
     }
 
     if (normalized.contains('chest') ||
         normalized.contains('brust') ||
         normalized.contains('pec')) {
-      return {'chest'};
+      return const _BodyPartSelection(frontParts: {'chest'});
     }
 
     if (normalized.contains('back') ||
@@ -185,7 +205,7 @@ class BodyStrengthMap extends StatelessWidget {
         normalized.contains('rücken') ||
         normalized.contains('lat') ||
         normalized.contains('trapezius')) {
-      return {'back'};
+      return const _BodyPartSelection(backParts: {'back'});
     }
 
     if (normalized.contains('shoulder') ||
@@ -193,53 +213,83 @@ class BodyStrengthMap extends StatelessWidget {
         normalized.contains('schulter') ||
         normalized.contains('schultern') ||
         normalized.contains('delt')) {
-      return {'shoulder'};
+      return const _BodyPartSelection(
+        frontParts: {'shoulder'},
+        backParts: {'shoulder'},
+      );
     }
 
-    if (normalized.contains('arm') ||
-        normalized.contains('arme') ||
-        normalized.contains('biceps') ||
-        normalized.contains('bizeps') ||
-        normalized.contains('triceps') ||
-        normalized.contains('trizeps') ||
-        normalized.contains('forearm') ||
-        normalized.contains('unterarm')) {
-      return {'arm'};
+    if (normalized.contains('biceps') || normalized.contains('bizeps')) {
+      return const _BodyPartSelection(frontParts: {'arm'});
+    }
+
+    if (normalized.contains('triceps') || normalized.contains('trizeps')) {
+      return const _BodyPartSelection(backParts: {'arm'});
+    }
+
+    if (normalized.contains('forearm') || normalized.contains('unterarm')) {
+      return const _BodyPartSelection(
+        frontParts: {'arm'},
+        backParts: {'arm'},
+      );
+    }
+
+    if (normalized.contains('arm') || normalized.contains('arme')) {
+      return const _BodyPartSelection(
+        frontParts: {'arm'},
+        backParts: {'arm'},
+      );
     }
 
     if (normalized.contains('abs') ||
         normalized.contains('core') ||
         normalized.contains('bauch') ||
         normalized.contains('oblique')) {
-      return {'abs'};
+      return const _BodyPartSelection(frontParts: {'abs'});
     }
 
     if (normalized.contains('glute') ||
         normalized.contains('butt') ||
         normalized.contains('po')) {
-      return {'butt'};
+      return const _BodyPartSelection(backParts: {'butt'});
+    }
+
+    if (normalized.contains('quad') || normalized.contains('quadrizeps')) {
+      return const _BodyPartSelection(frontParts: {'leg'});
+    }
+
+    if (normalized.contains('hamstring')) {
+      return const _BodyPartSelection(backParts: {'leg'});
+    }
+
+    if (normalized.contains('adductor') || normalized.contains('adduktor')) {
+      return const _BodyPartSelection(frontParts: {'leg'});
+    }
+
+    if (normalized.contains('calf') ||
+        normalized.contains('wade') ||
+        normalized.contains('waden')) {
+      return const _BodyPartSelection(backParts: {'leg'});
     }
 
     if (normalized.contains('leg') ||
         normalized.contains('legs') ||
         normalized.contains('bein') ||
-        normalized.contains('beine') ||
-        normalized.contains('quad') ||
-        normalized.contains('quadrizeps') ||
-        normalized.contains('hamstring') ||
-        normalized.contains('adductor') ||
-        normalized.contains('adduktor') ||
-        normalized.contains('calf') ||
-        normalized.contains('wade') ||
-        normalized.contains('waden')) {
-      return {'leg'};
+        normalized.contains('beine')) {
+      return const _BodyPartSelection(
+        frontParts: {'leg'},
+        backParts: {'leg'},
+      );
     }
 
     if (normalized.contains('neck') || normalized.contains('nacken')) {
-      return {'neck'};
+      return const _BodyPartSelection(
+        frontParts: {'neck'},
+        backParts: {'neck'},
+      );
     }
 
-    return {};
+    return const _BodyPartSelection();
   }
 
   String _normalize(String value) {
@@ -256,6 +306,59 @@ class BodyStrengthMap extends StatelessWidget {
   }
 }
 
+class _BodySideChart extends StatelessWidget {
+  const _BodySideChart({
+    required this.viewType,
+    required this.baseParts,
+    required this.selectedParts,
+    required this.width,
+  });
+
+  final BodyViewType viewType;
+  final Set<String> baseParts;
+  final Set<String> selectedParts;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          BodyChart(
+            selectedParts: baseParts,
+            selectedColor: const Color(0xFF111A24),
+            unselectedColor: const Color(0xFF050A0F),
+            viewType: viewType,
+            width: width,
+          ),
+          if (selectedParts.isNotEmpty)
+            BodyChart(
+              selectedParts: selectedParts,
+              selectedColor: const Color(0xFF00E5FF),
+              unselectedColor: Colors.transparent,
+              viewType: viewType,
+              width: width,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BodyPartSelection {
+  const _BodyPartSelection({
+    this.frontParts = const <String>{},
+    this.backParts = const <String>{},
+  });
+
+  final Set<String> frontParts;
+  final Set<String> backParts;
+
+  bool get hasFocus => frontParts.isNotEmpty || backParts.isNotEmpty;
+}
+
 class _CyberGridPainter extends CustomPainter {
   const _CyberGridPainter({
     required this.glowEnabled,
@@ -266,7 +369,7 @@ class _CyberGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final gridPaint = Paint()
-      ..color = const Color(0xFF00E5FF).withOpacity(0.052)
+      ..color = const Color(0xFF00E5FF).withValues(alpha: 0.052)
       ..strokeWidth = 1;
 
     const spacing = 26.0;
@@ -292,8 +395,8 @@ class _CyberGridPainter extends CustomPainter {
     final glowPaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          const Color(0xFF00E5FF).withOpacity(glowEnabled ? 0.22 : 0.08),
-          const Color(0xFF00E5FF).withOpacity(glowEnabled ? 0.05 : 0.02),
+          const Color(0xFF00E5FF).withValues(alpha: glowEnabled ? 0.22 : 0.08),
+          const Color(0xFF00E5FF).withValues(alpha: glowEnabled ? 0.05 : 0.02),
           Colors.transparent,
         ],
       ).createShader(
@@ -310,7 +413,7 @@ class _CyberGridPainter extends CustomPainter {
     );
 
     final scanLinePaint = Paint()
-      ..color = const Color(0xFF7DD3FC).withOpacity(0.06)
+      ..color = const Color(0xFF7DD3FC).withValues(alpha: 0.06)
       ..strokeWidth = 2;
 
     canvas.drawLine(

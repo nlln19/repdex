@@ -17,15 +17,12 @@ Future<void> main() async {
   Hive.registerAdapter(WorkoutSetAdapter());
   Hive.registerAdapter(WorkoutPlanAdapter());
   Hive.registerAdapter(WorkoutSessionAdapter());
+  Hive.registerAdapter(WorkoutPlanDayAdapter());
 
   await Hive.openBox<Exercise>('exercises');
   await Hive.openBox<WorkoutPlan>('workout_plans');
   await Hive.openBox<WorkoutSession>('workout_sessions');
   await Hive.openBox('settings');
 
-  runApp(
-    const ProviderScope(
-      child: GymTrackerApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: GymTrackerApp()));
 }

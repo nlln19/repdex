@@ -5,6 +5,7 @@ import '../models/exercise.dart';
 import '../models/workout_plan.dart';
 import '../widgets/body_strength_map.dart';
 import 'plan_builder_screen.dart';
+import 'workout_start_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -18,10 +19,10 @@ class HomeScreen extends StatelessWidget {
       builder: (context, settingsBox, _) {
         return ValueListenableBuilder<Box<WorkoutPlan>>(
           valueListenable: Hive.box<WorkoutPlan>('workout_plans').listenable(),
-          builder: (context, workoutPlanBox, __) {
+          builder: (context, workoutPlanBox, _) {
             return ValueListenableBuilder<Box<Exercise>>(
               valueListenable: Hive.box<Exercise>('exercises').listenable(),
-              builder: (context, exerciseBox, ___) {
+              builder: (context, exerciseBox, _) {
                 final todayWorkout = _buildTodayWorkoutData(
                   settingsBox: settingsBox,
                   workoutPlanBox: workoutPlanBox,
@@ -202,10 +203,10 @@ class HomeScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF09131B),
         borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.12)),
+        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.12)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00E5FF).withOpacity(0.08),
+            color: const Color(0xFF00E5FF).withValues(alpha: 0.08),
             blurRadius: 42,
             spreadRadius: 2,
           ),
@@ -236,7 +237,7 @@ class HomeScreen extends StatelessWidget {
       children: [
         _StartWorkoutButton(
           onTap: () {
-            _openPlaceholder(context, 'Training starten');
+            _startWorkout(context);
           },
         ),
         const SizedBox(height: 10),
@@ -272,6 +273,142 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+
+  Future<void> _startWorkout(BuildContext context) async {
+    final settingsBox = Hive.box('settings');
+    final workoutPlanBox = Hive.box<WorkoutPlan>('workout_plans');
+    final exerciseBox = Hive.box<Exercise>('exercises');
+    final todayKey = WorkoutStartScreen.dateKey(DateTime.now());
+
+    if (WorkoutStartScreen.hasCompletedWorkoutToday(settingsBox)) {
+      _showStartError(
+        context,
+        'Du hast heute bereits ein Workout absolviert.',
+      );
+      return;
+    }
+
+    final activeWorkoutDate = settingsBox.get(
+      WorkoutStartScreen.activeWorkoutDateKey,
+    );
+
+    if (activeWorkoutDate == todayKey) {
+      final activePlanId = settingsBox.get(
+        WorkoutStartScreen.activeWorkoutPlanIdKey,
+      );
+
+      if (activePlanId is String) {
+        final activePlan = workoutPlanBox.get(activePlanId);
+
+        if (activePlan != null) {
+          final activeDay = activePlan.dayForWeekday(DateTime.now().weekday);
+          final activeExercises = activeDay.exerciseIds
+              .map(exerciseBox.get)
+              .whereType<Exercise>()
+              .toList(growable: false);
+
+          if (activeExercises.isNotEmpty) {
+            _openWorkoutScreen(
+              context: context,
+              plan: activePlan,
+              day: activeDay,
+              exercises: activeExercises,
+            );
+            return;
+          }
+        }
+      }
+
+      await WorkoutStartScreen.clearActiveWorkout(settingsBox);
+
+      if (!context.mounted) {
+        return;
+      }
+    } else if (activeWorkoutDate is String && activeWorkoutDate.isNotEmpty) {
+      await WorkoutStartScreen.clearActiveWorkout(settingsBox);
+
+      if (!context.mounted) {
+        return;
+      }
+    }
+
+    final selectedPlanId = settingsBox.get(_selectedWorkoutPlanKey);
+
+    if (selectedPlanId == null || selectedPlanId is! String) {
+      _showStartError(
+        context,
+        'Bitte wähle zuerst einen aktiven Workout-Plan aus.',
+      );
+      return;
+    }
+
+    final selectedPlan = workoutPlanBox.get(selectedPlanId);
+
+    if (selectedPlan == null) {
+      _showStartError(
+        context,
+        'Der aktive Plan wurde nicht gefunden. Bitte wähle einen anderen Plan aus.',
+      );
+      return;
+    }
+
+    final today = selectedPlan.dayForWeekday(DateTime.now().weekday);
+
+    if (today.isRestDay || today.exerciseIds.isEmpty) {
+      _showStartError(
+        context,
+        'Heute ist in deinem aktiven Plan kein Training eingetragen.',
+      );
+      return;
+    }
+
+    final exercises = today.exerciseIds
+        .map(exerciseBox.get)
+        .whereType<Exercise>()
+        .toList(growable: false);
+
+    if (exercises.isEmpty) {
+      _showStartError(
+        context,
+        'Für den heutigen Trainingstag wurden keine Übungen gefunden.',
+      );
+      return;
+    }
+
+    _openWorkoutScreen(
+      context: context,
+      plan: selectedPlan,
+      day: today,
+      exercises: exercises,
+    );
+  }
+
+  void _openWorkoutScreen({
+    required BuildContext context,
+    required WorkoutPlan plan,
+    required WorkoutPlanDay day,
+    required List<Exercise> exercises,
+  }) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => WorkoutStartScreen(
+          plan: plan,
+          day: day,
+          exercises: exercises,
+        ),
+      ),
+    );
+  }
+
+  void _showStartError(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFF7F1D1D),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
@@ -314,7 +451,7 @@ class _TodayWorkoutHeader extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF050A0F),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.14)),
+        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.14)),
       ),
       child: Row(
         children: [
@@ -323,9 +460,9 @@ class _TodayWorkoutHeader extends StatelessWidget {
             height: 38,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
-              color: const Color(0xFF00E5FF).withOpacity(0.10),
+              color: const Color(0xFF00E5FF).withValues(alpha: 0.10),
               border: Border.all(
-                color: const Color(0xFF00E5FF).withOpacity(0.24),
+                color: const Color(0xFF00E5FF).withValues(alpha: 0.24),
               ),
             ),
             child: const Icon(
@@ -345,11 +482,12 @@ class _TodayWorkoutHeader extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Color(0xFFEAF2F4),
-                    fontSize: 15,
+                    fontSize: 16,
                     fontWeight: FontWeight.w900,
+                    letterSpacing: -0.2,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Text(
                   subtitle,
                   maxLines: 2,
@@ -393,11 +531,11 @@ class _AchievementsButton extends StatelessWidget {
               colors: [Color(0xFF122031), Color(0xFF071018)],
             ),
             border: Border.all(
-              color: const Color(0xFF00E5FF).withOpacity(0.38),
+              color: const Color(0xFF00E5FF).withValues(alpha: 0.38),
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF00E5FF).withOpacity(0.18),
+                color: const Color(0xFF00E5FF).withValues(alpha: 0.18),
                 blurRadius: 20,
                 spreadRadius: 1,
               ),
@@ -437,17 +575,17 @@ class _StartWorkoutButton extends StatelessWidget {
               colors: [Color(0xFF0F172A), Color(0xFF08111C), Color(0xFF020617)],
             ),
             border: Border.all(
-              color: const Color(0xFF00E5FF).withOpacity(0.46),
+              color: const Color(0xFF00E5FF).withValues(alpha: 0.46),
               width: 1.2,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF00E5FF).withOpacity(0.22),
+                color: const Color(0xFF00E5FF).withValues(alpha: 0.22),
                 blurRadius: 34,
                 spreadRadius: 2,
               ),
               BoxShadow(
-                color: Colors.black.withOpacity(0.38),
+                color: Colors.black.withValues(alpha: 0.38),
                 blurRadius: 20,
                 offset: const Offset(0, 12),
               ),
@@ -463,7 +601,7 @@ class _StartWorkoutButton extends StatelessWidget {
                       center: Alignment.topLeft,
                       radius: 1.1,
                       colors: [
-                        const Color(0xFF00E5FF).withOpacity(0.22),
+                        const Color(0xFF00E5FF).withValues(alpha: 0.22),
                         Colors.transparent,
                       ],
                     ),
@@ -479,7 +617,7 @@ class _StartWorkoutButton extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: const Color(0xFF00E5FF).withOpacity(0.16),
+                      color: const Color(0xFF00E5FF).withValues(alpha: 0.16),
                     ),
                   ),
                 ),
@@ -492,10 +630,10 @@ class _StartWorkoutButton extends StatelessWidget {
                       width: 42,
                       height: 42,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF00E5FF).withOpacity(0.10),
+                        color: const Color(0xFF00E5FF).withValues(alpha: 0.10),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: const Color(0xFF00E5FF).withOpacity(0.32),
+                          color: const Color(0xFF00E5FF).withValues(alpha: 0.32),
                         ),
                       ),
                       child: const Icon(
@@ -531,9 +669,8 @@ class _NeonActionButton extends StatelessWidget {
     required this.subtitle,
     required this.icon,
     required this.onTap,
-    this.filled = false,
     this.compact = false,
-  });
+  }) : filled = false;
 
   final String label;
   final String subtitle;
@@ -562,13 +699,13 @@ class _NeonActionButton extends StatelessWidget {
             border: Border.all(
               color: filled
                   ? Colors.transparent
-                  : const Color(0xFF00E5FF).withOpacity(0.28),
+                  : const Color(0xFF00E5FF).withValues(alpha: 0.28),
             ),
             boxShadow: [
               BoxShadow(
                 color: const Color(
                   0xFF00E5FF,
-                ).withOpacity(filled ? 0.24 : 0.08),
+                ).withValues(alpha: filled ? 0.24 : 0.08),
                 blurRadius: filled ? 28 : 16,
                 spreadRadius: filled ? 2 : 0,
               ),
@@ -582,13 +719,13 @@ class _NeonActionButton extends StatelessWidget {
                 height: compact ? 34 : 38,
                 decoration: BoxDecoration(
                   color: filled
-                      ? Colors.black.withOpacity(0.12)
-                      : const Color(0xFF00E5FF).withOpacity(0.08),
+                      ? Colors.black.withValues(alpha: 0.12)
+                      : const Color(0xFF00E5FF).withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: filled
-                        ? Colors.black.withOpacity(0.12)
-                        : const Color(0xFF00E5FF).withOpacity(0.24),
+                        ? Colors.black.withValues(alpha: 0.12)
+                        : const Color(0xFF00E5FF).withValues(alpha: 0.24),
                   ),
                 ),
                 child: Icon(
@@ -621,7 +758,7 @@ class _NeonActionButton extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: filled
-                            ? Colors.black.withOpacity(0.62)
+                            ? Colors.black.withValues(alpha: 0.62)
                             : const Color(0xFF8A93A3),
                         fontWeight: FontWeight.w600,
                         fontSize: compact ? 11 : 12,
@@ -658,7 +795,7 @@ class _LegendItem extends StatelessWidget {
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: color.withOpacity(0.58),
+                color: color.withValues(alpha: 0.58),
                 blurRadius: 11,
                 spreadRadius: 1,
               ),

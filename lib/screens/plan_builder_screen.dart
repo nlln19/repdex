@@ -16,10 +16,10 @@ class PlanBuilderScreen extends StatelessWidget {
       builder: (context, settingsBox, _) {
         return ValueListenableBuilder<Box<WorkoutPlan>>(
           valueListenable: Hive.box<WorkoutPlan>('workout_plans').listenable(),
-          builder: (context, workoutPlanBox, __) {
+          builder: (context, workoutPlanBox, _) {
             return ValueListenableBuilder<Box<Exercise>>(
               valueListenable: Hive.box<Exercise>('exercises').listenable(),
-              builder: (context, exerciseBox, ___) {
+              builder: (context, exerciseBox, _) {
                 final plans = workoutPlanBox.values.toList()
                   ..sort((a, b) => a.name.compareTo(b.name));
                 final activePlanId = settingsBox.get(selectedWorkoutPlanKey);
@@ -69,7 +69,7 @@ class PlanBuilderScreen extends StatelessWidget {
                             padding: const EdgeInsets.fromLTRB(18, 0, 18, 28),
                             sliver: SliverList.separated(
                               itemCount: plans.length,
-                              separatorBuilder: (_, __) =>
+                              separatorBuilder: (_, _) =>
                                   const SizedBox(height: 14),
                               itemBuilder: (context, index) {
                                 final plan = plans[index];
@@ -190,10 +190,10 @@ class _PlansHero extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [Color(0xFF0D1B28), Color(0xFF071018), Color(0xFF050A0F)],
         ),
-        border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.18)),
+        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.18)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00E5FF).withOpacity(0.09),
+            color: const Color(0xFF00E5FF).withValues(alpha: 0.09),
             blurRadius: 34,
             spreadRadius: 1,
           ),
@@ -206,9 +206,9 @@ class _PlansHero extends StatelessWidget {
             height: 48,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(18),
-              color: const Color(0xFF00E5FF).withOpacity(0.10),
+              color: const Color(0xFF00E5FF).withValues(alpha: 0.10),
               border: Border.all(
-                color: const Color(0xFF00E5FF).withOpacity(0.28),
+                color: const Color(0xFF00E5FF).withValues(alpha: 0.28),
               ),
             ),
             child: const Icon(
@@ -284,13 +284,13 @@ class _PlanCard extends StatelessWidget {
         color: const Color(0xFF08111A),
         border: Border.all(
           color: isActive
-              ? const Color(0xFF00E5FF).withOpacity(0.52)
-              : const Color(0xFF00E5FF).withOpacity(0.14),
+              ? const Color(0xFF00E5FF).withValues(alpha: 0.52)
+              : const Color(0xFF00E5FF).withValues(alpha: 0.14),
           width: isActive ? 1.4 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00E5FF).withOpacity(isActive ? 0.18 : 0.06),
+            color: const Color(0xFF00E5FF).withValues(alpha: isActive ? 0.18 : 0.06),
             blurRadius: isActive ? 34 : 20,
             spreadRadius: isActive ? 1 : 0,
           ),
@@ -405,11 +405,11 @@ class _WeekdayPill extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         color: active
-            ? const Color(0xFF00E5FF).withOpacity(0.10)
+            ? const Color(0xFF00E5FF).withValues(alpha: 0.10)
             : const Color(0xFF0B1620),
         border: Border.all(
           color: active
-              ? const Color(0xFF00E5FF).withOpacity(0.28)
+              ? const Color(0xFF00E5FF).withValues(alpha: 0.28)
               : const Color(0xFF1E293B),
         ),
       ),
@@ -453,9 +453,11 @@ class _PlanEditorScreenState extends State<_PlanEditorScreen> {
     'Brust',
     'Rücken',
     'Schultern',
-    'Arme',
+    'Bizeps',
+    'Trizeps',
     'Bauch/Core',
-    'Beine',
+    'Quads',
+    'Hamstrings',
     'Po',
     'Nacken',
   ];
@@ -673,6 +675,21 @@ class _PlanEditorScreenState extends State<_PlanEditorScreen> {
           _showError('Jede Übung braucht mindestens eine Muskelgruppe.');
           return;
         }
+
+        if (exercise.plannedSets == null) {
+          _showError('Sätze müssen eine ganze Zahl grösser als 0 sein.');
+          return;
+        }
+
+        if (exercise.plannedReps == null) {
+          _showError('Wiederholungen müssen eine ganze Zahl grösser als 0 sein.');
+          return;
+        }
+
+        if (exercise.plannedWeight == null) {
+          _showError('Gewicht muss eine Zahl ab 0 sein.');
+          return;
+        }
       }
     }
 
@@ -693,6 +710,9 @@ class _PlanEditorScreenState extends State<_PlanEditorScreen> {
           id: draft.id,
           name: draft.name.trim(),
           muscleGroups: draft.muscleGroups.toList()..sort(),
+          plannedSets: draft.plannedSets!,
+          plannedReps: draft.plannedReps!,
+          plannedWeight: draft.plannedWeight!,
         );
 
         await _exerciseBox.put(exercise.id, exercise);
@@ -851,7 +871,19 @@ class _ExerciseDraft {
     required this.id,
     required String name,
     required Set<String> muscleGroups,
+    required int plannedSets,
+    required int plannedReps,
+    required double plannedWeight,
   })  : nameController = TextEditingController(text: name),
+        setsController = TextEditingController(text: plannedSets.toString()),
+        repsController = TextEditingController(text: plannedReps.toString()),
+        weightController = TextEditingController(
+          text: plannedWeight == 0
+              ? ''
+              : plannedWeight.roundToDouble() == plannedWeight
+                  ? plannedWeight.toInt().toString()
+                  : plannedWeight.toStringAsFixed(1),
+        ),
         muscleGroups = {...muscleGroups};
 
   factory _ExerciseDraft.createEmpty() {
@@ -859,25 +891,67 @@ class _ExerciseDraft {
       id: 'exercise_${DateTime.now().microsecondsSinceEpoch}_${UniqueKey()}',
       name: '',
       muscleGroups: {},
+      plannedSets: 3,
+      plannedReps: 10,
+      plannedWeight: 0,
     );
   }
 
   factory _ExerciseDraft.fromExercise(Exercise exercise) {
-    return _ExerciseDraft(
+    final normalizedExercise = Exercise(
       id: exercise.id,
       name: exercise.name,
-      muscleGroups: exercise.muscleGroups.toSet(),
+      muscleGroups: exercise.muscleGroups,
+      plannedSets: exercise.plannedSets,
+      plannedReps: exercise.plannedReps,
+      plannedWeight: exercise.plannedWeight,
+    );
+
+    return _ExerciseDraft(
+      id: normalizedExercise.id,
+      name: normalizedExercise.name,
+      muscleGroups: normalizedExercise.muscleGroups.toSet(),
+      plannedSets: normalizedExercise.plannedSets,
+      plannedReps: normalizedExercise.plannedReps,
+      plannedWeight: normalizedExercise.plannedWeight,
     );
   }
 
   final String id;
   final TextEditingController nameController;
+  final TextEditingController setsController;
+  final TextEditingController repsController;
+  final TextEditingController weightController;
   final Set<String> muscleGroups;
 
   String get name => nameController.text;
 
+  int? get plannedSets {
+    final value = int.tryParse(setsController.text.trim());
+    return value == null || value < 1 ? null : value;
+  }
+
+  int? get plannedReps {
+    final value = int.tryParse(repsController.text.trim());
+    return value == null || value < 1 ? null : value;
+  }
+
+  double? get plannedWeight {
+    final text = weightController.text.trim().replaceAll(',', '.');
+
+    if (text.isEmpty) {
+      return 0;
+    }
+
+    final value = double.tryParse(text);
+    return value == null || value < 0 ? null : value;
+  }
+
   void dispose() {
     nameController.dispose();
+    setsController.dispose();
+    repsController.dispose();
+    weightController.dispose();
   }
 }
 
@@ -912,9 +986,9 @@ class _DayDraftCard extends StatelessWidget {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(15),
-                  color: const Color(0xFF00E5FF).withOpacity(0.10),
+                  color: const Color(0xFF00E5FF).withValues(alpha: 0.10),
                   border: Border.all(
-                    color: const Color(0xFF00E5FF).withOpacity(0.26),
+                    color: const Color(0xFF00E5FF).withValues(alpha: 0.26),
                   ),
                 ),
                 child: Text(
@@ -954,7 +1028,7 @@ class _DayDraftCard extends StatelessWidget {
               ),
               Switch(
                 value: draft.isRestDay,
-                activeColor: const Color(0xFF00E5FF),
+                activeThumbColor: const Color(0xFF00E5FF),
                 onChanged: onToggleRestDay,
               ),
               const Text(
@@ -1017,7 +1091,7 @@ class _ExerciseDraftCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(22),
         color: const Color(0xFF050A0F),
-        border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.12)),
+        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.12)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1030,9 +1104,9 @@ class _ExerciseDraftCard extends StatelessWidget {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
-                  color: const Color(0xFF00E5FF).withOpacity(0.10),
+                  color: const Color(0xFF00E5FF).withValues(alpha: 0.10),
                   border: Border.all(
-                    color: const Color(0xFF00E5FF).withOpacity(0.22),
+                    color: const Color(0xFF00E5FF).withValues(alpha: 0.22),
                   ),
                 ),
                 child: Text(
@@ -1066,6 +1140,35 @@ class _ExerciseDraftCard extends StatelessWidget {
             controller: draft.nameController,
             hintText: 'z. B. Bankdrücken',
             icon: Icons.fitness_center_rounded,
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _CompactMetricField(
+                  controller: draft.setsController,
+                  label: 'Sätze',
+                  hintText: '3',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _CompactMetricField(
+                  controller: draft.repsController,
+                  label: 'Wdh.',
+                  hintText: '10',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _CompactMetricField(
+                  controller: draft.weightController,
+                  label: 'Gewicht',
+                  hintText: 'kg',
+                  decimal: true,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
           const Text(
@@ -1103,6 +1206,57 @@ class _ExerciseDraftCard extends StatelessWidget {
   }
 }
 
+class _CompactMetricField extends StatelessWidget {
+  const _CompactMetricField({
+    required this.controller,
+    required this.label,
+    required this.hintText,
+    this.decimal = false,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final String hintText;
+  final bool decimal;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      keyboardType: TextInputType.numberWithOptions(decimal: decimal),
+      cursorColor: const Color(0xFF00E5FF),
+      style: const TextStyle(
+        color: Color(0xFFEAF2F4),
+        fontSize: 13,
+        fontWeight: FontWeight.w800,
+      ),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hintText,
+        labelStyle: const TextStyle(
+          color: Color(0xFF7DD3FC),
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+        ),
+        hintStyle: const TextStyle(color: Color(0xFF586174)),
+        filled: true,
+        fillColor: const Color(0xFF071018),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(
+            color: const Color(0xFF00E5FF).withValues(alpha: 0.14),
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFF00E5FF), width: 1.1),
+        ),
+      ),
+    );
+  }
+}
+
 class _EditorPanel extends StatelessWidget {
   const _EditorPanel({required this.child});
 
@@ -1115,10 +1269,10 @@ class _EditorPanel extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(26),
         color: const Color(0xFF08111A),
-        border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.14)),
+        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.14)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00E5FF).withOpacity(0.05),
+            color: const Color(0xFF00E5FF).withValues(alpha: 0.05),
             blurRadius: 22,
           ),
         ],
@@ -1191,7 +1345,7 @@ class _NeonTextField extends StatelessWidget {
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
           borderSide: BorderSide(
-            color: const Color(0xFF00E5FF).withOpacity(0.18),
+            color: const Color(0xFF00E5FF).withValues(alpha: 0.18),
           ),
         ),
         focusedBorder: OutlineInputBorder(
@@ -1216,7 +1370,7 @@ class _ActiveSwitchTile extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         color: const Color(0xFF050A0F),
-        border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.14)),
+        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.14)),
       ),
       child: Row(
         children: [
@@ -1247,7 +1401,7 @@ class _ActiveSwitchTile extends StatelessWidget {
           ),
           Switch(
             value: value,
-            activeColor: const Color(0xFF00E5FF),
+            activeThumbColor: const Color(0xFF00E5FF),
             onChanged: onChanged,
           ),
         ],
@@ -1280,17 +1434,17 @@ class _SelectableMuscleChip extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(999),
             color: selected
-                ? const Color(0xFF00E5FF).withOpacity(0.18)
+                ? const Color(0xFF00E5FF).withValues(alpha: 0.18)
                 : const Color(0xFF0B1620),
             border: Border.all(
               color: selected
-                  ? const Color(0xFF00E5FF).withOpacity(0.74)
-                  : const Color(0xFF00E5FF).withOpacity(0.16),
+                  ? const Color(0xFF00E5FF).withValues(alpha: 0.74)
+                  : const Color(0xFF00E5FF).withValues(alpha: 0.16),
             ),
             boxShadow: selected
                 ? [
                     BoxShadow(
-                      color: const Color(0xFF00E5FF).withOpacity(0.16),
+                      color: const Color(0xFF00E5FF).withValues(alpha: 0.16),
                       blurRadius: 14,
                     ),
                   ]
@@ -1321,8 +1475,8 @@ class _MuscleGroupPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
-        color: const Color(0xFF00E5FF).withOpacity(0.09),
-        border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.20)),
+        color: const Color(0xFF00E5FF).withValues(alpha: 0.09),
+        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.20)),
       ),
       child: Text(
         label,
@@ -1364,7 +1518,7 @@ class _ActivatePlanButton extends StatelessWidget {
             border: Border.all(
               color: isActive
                   ? Colors.transparent
-                  : const Color(0xFF00E5FF).withOpacity(0.28),
+                  : const Color(0xFF00E5FF).withValues(alpha: 0.28),
             ),
           ),
           child: Center(
@@ -1408,7 +1562,7 @@ class _SavePlanButton extends StatelessWidget {
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF00E5FF).withOpacity(0.28),
+                color: const Color(0xFF00E5FF).withValues(alpha: 0.28),
                 blurRadius: 28,
                 spreadRadius: 1,
               ),
@@ -1447,8 +1601,8 @@ class _AddExerciseButton extends StatelessWidget {
           height: 46,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            color: const Color(0xFF00E5FF).withOpacity(0.08),
-            border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.22)),
+            color: const Color(0xFF00E5FF).withValues(alpha: 0.08),
+            border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.22)),
           ),
           child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -1493,7 +1647,7 @@ class _CompactCreateButton extends StatelessWidget {
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF00E5FF).withOpacity(0.24),
+                color: const Color(0xFF00E5FF).withValues(alpha: 0.24),
                 blurRadius: 18,
               ),
             ],
@@ -1525,7 +1679,7 @@ class _GlowIconButton extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(17),
             color: const Color(0xFF0B1620),
-            border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.24)),
+            border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.24)),
           ),
           child: Icon(icon, color: const Color(0xFF7DD3FC)),
         ),
@@ -1554,7 +1708,7 @@ class _SmallCircleButton extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: const Color(0xFF0B1620),
-            border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.16)),
+            border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.16)),
           ),
           child: Icon(icon, color: const Color(0xFF8A93A3), size: 20),
         ),
@@ -1606,8 +1760,8 @@ class _EmptyPlansState extends StatelessWidget {
             height: 86,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: const Color(0xFF00E5FF).withOpacity(0.08),
-              border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.22)),
+              color: const Color(0xFF00E5FF).withValues(alpha: 0.08),
+              border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.22)),
             ),
             child: const Icon(
               Icons.calendar_month_rounded,
