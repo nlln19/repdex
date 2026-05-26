@@ -6,10 +6,12 @@ class BodyStrengthMap extends StatelessWidget {
     super.key,
     required this.trainedMuscleGroups,
     required this.highlightFullBody,
+    this.isDepleted = false,
   });
 
   final Set<String> trainedMuscleGroups;
   final bool highlightFullBody;
+  final bool isDepleted;
 
   static const double _singleBodyWidth = 148;
 
@@ -41,6 +43,12 @@ class BodyStrengthMap extends StatelessWidget {
         : _selectedBodyPartsFromMuscleGroups();
 
     final hasFocus = selection.hasFocus;
+    final activeColor = isDepleted
+        ? const Color(0xFFFF3B30)
+        : const Color(0xFF00E5FF);
+    final softActiveColor = isDepleted
+        ? const Color(0xFFFF6B5F)
+        : const Color(0xFF00E5FF);
 
     return Container(
       width: double.infinity,
@@ -50,11 +58,11 @@ class BodyStrengthMap extends StatelessWidget {
         color: const Color(0xFF061018),
         borderRadius: BorderRadius.circular(28),
         border: Border.all(
-          color: const Color(0xFF00E5FF).withValues(alpha: 0.18),
+          color: activeColor.withValues(alpha: 0.18),
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00E5FF).withValues(alpha: 0.14),
+            color: activeColor.withValues(alpha: 0.14),
             blurRadius: 34,
             spreadRadius: 2,
           ),
@@ -68,6 +76,7 @@ class BodyStrengthMap extends StatelessWidget {
               child: CustomPaint(
                 painter: _CyberGridPainter(
                   glowEnabled: hasFocus,
+                  glowColor: activeColor,
                 ),
               ),
             ),
@@ -81,7 +90,7 @@ class BodyStrengthMap extends StatelessWidget {
                     center: Alignment.center,
                     radius: 0.9,
                     colors: [
-                      const Color(0xFF00E5FF).withValues(
+                      activeColor.withValues(
                         alpha: hasFocus ? 0.18 : 0.08,
                       ),
                       const Color(0xFF071018).withValues(alpha: 0.30),
@@ -100,6 +109,8 @@ class BodyStrengthMap extends StatelessWidget {
                 baseParts: _allFrontBodyParts,
                 selectedParts: selection.frontParts,
                 width: _singleBodyWidth,
+                activeColor: activeColor,
+                softActiveColor: softActiveColor,
               ),
               const SizedBox(width: 8),
               _BodySideChart(
@@ -107,6 +118,8 @@ class BodyStrengthMap extends StatelessWidget {
                 baseParts: _allBackBodyParts,
                 selectedParts: selection.backParts,
                 width: _singleBodyWidth,
+                activeColor: activeColor,
+                softActiveColor: softActiveColor,
               ),
             ],
           ),
@@ -119,7 +132,7 @@ class BodyStrengthMap extends StatelessWidget {
                   borderRadius: BorderRadius.circular(999),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF00E5FF).withValues(alpha: 0.28),
+                      color: softActiveColor.withValues(alpha: 0.28),
                       blurRadius: highlightFullBody ? 58 : 44,
                       spreadRadius: highlightFullBody ? 8 : 4,
                     ),
@@ -135,7 +148,6 @@ class BodyStrengthMap extends StatelessWidget {
   _BodyPartSelection _selectedBodyPartsFromMuscleGroups() {
     final frontParts = <String>{};
     final backParts = <String>{};
-
     for (final muscleGroup in trainedMuscleGroups) {
       final selection = _bodyPartsForMuscleGroup(muscleGroup);
       frontParts.addAll(selection.frontParts);
@@ -228,10 +240,7 @@ class BodyStrengthMap extends StatelessWidget {
     }
 
     if (normalized.contains('forearm') || normalized.contains('unterarm')) {
-      return const _BodyPartSelection(
-        frontParts: {'arm'},
-        backParts: {'arm'},
-      );
+      return const _BodyPartSelection();
     }
 
     if (normalized.contains('arm') || normalized.contains('arme')) {
@@ -312,12 +321,16 @@ class _BodySideChart extends StatelessWidget {
     required this.baseParts,
     required this.selectedParts,
     required this.width,
+    required this.activeColor,
+    required this.softActiveColor,
   });
 
   final BodyViewType viewType;
   final Set<String> baseParts;
   final Set<String> selectedParts;
   final double width;
+  final Color activeColor;
+  final Color softActiveColor;
 
   @override
   Widget build(BuildContext context) {
@@ -336,7 +349,7 @@ class _BodySideChart extends StatelessWidget {
           if (selectedParts.isNotEmpty)
             BodyChart(
               selectedParts: selectedParts,
-              selectedColor: const Color(0xFF00E5FF),
+              selectedColor: activeColor,
               unselectedColor: Colors.transparent,
               viewType: viewType,
               width: width,
@@ -355,21 +368,23 @@ class _BodyPartSelection {
 
   final Set<String> frontParts;
   final Set<String> backParts;
-
   bool get hasFocus => frontParts.isNotEmpty || backParts.isNotEmpty;
 }
+
 
 class _CyberGridPainter extends CustomPainter {
   const _CyberGridPainter({
     required this.glowEnabled,
+    required this.glowColor,
   });
 
   final bool glowEnabled;
+  final Color glowColor;
 
   @override
   void paint(Canvas canvas, Size size) {
     final gridPaint = Paint()
-      ..color = const Color(0xFF00E5FF).withValues(alpha: 0.052)
+      ..color = glowColor.withValues(alpha: 0.052)
       ..strokeWidth = 1;
 
     const spacing = 26.0;
@@ -395,8 +410,8 @@ class _CyberGridPainter extends CustomPainter {
     final glowPaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          const Color(0xFF00E5FF).withValues(alpha: glowEnabled ? 0.22 : 0.08),
-          const Color(0xFF00E5FF).withValues(alpha: glowEnabled ? 0.05 : 0.02),
+          glowColor.withValues(alpha: glowEnabled ? 0.22 : 0.08),
+          glowColor.withValues(alpha: glowEnabled ? 0.05 : 0.02),
           Colors.transparent,
         ],
       ).createShader(
@@ -413,7 +428,7 @@ class _CyberGridPainter extends CustomPainter {
     );
 
     final scanLinePaint = Paint()
-      ..color = const Color(0xFF7DD3FC).withValues(alpha: 0.06)
+      ..color = glowColor.withValues(alpha: 0.10)
       ..strokeWidth = 2;
 
     canvas.drawLine(
@@ -425,6 +440,7 @@ class _CyberGridPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _CyberGridPainter oldDelegate) {
-    return oldDelegate.glowEnabled != glowEnabled;
+    return oldDelegate.glowEnabled != glowEnabled ||
+        oldDelegate.glowColor != glowColor;
   }
 }

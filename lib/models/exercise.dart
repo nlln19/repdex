@@ -82,8 +82,14 @@ class Exercise extends HiveObject {
 
     switch (normalizedGroup) {
       case 'arms':
+      case 'arm':
       case 'arme':
         return const ['Bizeps', 'Trizeps'];
+      case 'forearms':
+      case 'forearm':
+      case 'unterarme':
+      case 'unterarm':
+        return const [];
       case 'legs':
       case 'leg':
       case 'beine':

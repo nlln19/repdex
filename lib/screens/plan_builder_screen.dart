@@ -4,6 +4,28 @@ import 'package:hive_ce_flutter/hive_flutter.dart';
 import '../models/exercise.dart';
 import '../models/workout_plan.dart';
 
+String _formatRestSecondsLabel(int restSeconds) {
+  final safeSeconds = restSeconds < 1 ? 1 : restSeconds;
+
+  if (safeSeconds % 60 == 0) {
+    return '${safeSeconds ~/ 60} Min.';
+  }
+
+  final minutes = safeSeconds / 60;
+  return '${minutes.toStringAsFixed(1).replaceAll('.', ',')} Min.';
+}
+
+String _formatRestMinutesInput(int restSeconds) {
+  final safeSeconds = restSeconds < 1 ? 1 : restSeconds;
+  final minutes = safeSeconds / 60;
+
+  if (minutes.roundToDouble() == minutes) {
+    return minutes.toInt().toString();
+  }
+
+  return minutes.toStringAsFixed(1);
+}
+
 class PlanBuilderScreen extends StatelessWidget {
   const PlanBuilderScreen({super.key});
 
@@ -47,62 +69,42 @@ class PlanBuilderScreen extends StatelessWidget {
                   ),
                   body: SafeArea(
                     top: false,
-                    child: CustomScrollView(
-                      slivers: [
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
-                          sliver: SliverToBoxAdapter(
-                            child: _PlansHero(
-                              onCreate: () => _openEditor(context),
-                            ),
-                          ),
-                        ),
-                        if (plans.isEmpty)
-                          SliverFillRemaining(
-                            hasScrollBody: false,
-                            child: _EmptyPlansState(
-                              onCreate: () => _openEditor(context),
-                            ),
-                          )
-                        else
-                          SliverPadding(
-                            padding: const EdgeInsets.fromLTRB(18, 0, 18, 28),
-                            sliver: SliverList.separated(
-                              itemCount: plans.length,
-                              separatorBuilder: (_, _) =>
-                                  const SizedBox(height: 14),
-                              itemBuilder: (context, index) {
-                                final plan = plans[index];
-                                final exercises = plan.exerciseIds
-                                    .map(exerciseBox.get)
-                                    .whereType<Exercise>()
-                                    .toList();
-                                final isActive = activePlanId == plan.id;
+                    child: plans.isEmpty
+                        ? _EmptyPlansState(onCreate: () => _openEditor(context))
+                        : ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
+                            itemCount: plans.length + 1,
+                            separatorBuilder: (_, _) => const SizedBox(height: 14),
+                            itemBuilder: (context, index) {
+                              if (index == 0) {
+                                return _PlansHero(onCreate: () => _openEditor(context));
+                              }
 
-                                return _PlanCard(
+                              final plan = plans[index - 1];
+                              final exercises = plan.exerciseIds
+                                  .map(exerciseBox.get)
+                                  .whereType<Exercise>()
+                                  .toList();
+                              final isActive = activePlanId == plan.id;
+
+                              return _PlanCard(
+                                plan: plan,
+                                exercises: exercises,
+                                isActive: isActive,
+                                onActivate: () async {
+                                  await settingsBox.put(selectedWorkoutPlanKey, plan.id);
+                                },
+                                onEdit: () => _openEditor(context, plan: plan),
+                                onDelete: () => _deletePlan(
+                                  context: context,
+                                  settingsBox: settingsBox,
+                                  workoutPlanBox: workoutPlanBox,
+                                  exerciseBox: exerciseBox,
                                   plan: plan,
-                                  exercises: exercises,
-                                  isActive: isActive,
-                                  onActivate: () async {
-                                    await settingsBox.put(
-                                      selectedWorkoutPlanKey,
-                                      plan.id,
-                                    );
-                                  },
-                                  onEdit: () => _openEditor(context, plan: plan),
-                                  onDelete: () => _deletePlan(
-                                    context: context,
-                                    settingsBox: settingsBox,
-                                    workoutPlanBox: workoutPlanBox,
-                                    exerciseBox: exerciseBox,
-                                    plan: plan,
-                                  ),
-                                );
-                              },
-                            ),
+                                ),
+                              );
+                            },
                           ),
-                      ],
-                    ),
                   ),
                 );
               },
@@ -115,9 +117,7 @@ class PlanBuilderScreen extends StatelessWidget {
 
   void _openEditor(BuildContext context, {WorkoutPlan? plan}) {
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => _PlanEditorScreen(plan: plan),
-      ),
+      MaterialPageRoute(builder: (_) => _PlanEditorScreen(plan: plan)),
     );
   }
 
@@ -183,46 +183,17 @@ class _PlansHero extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(30),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF0D1B28), Color(0xFF071018), Color(0xFF050A0F)],
-        ),
-        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.18)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF00E5FF).withValues(alpha: 0.09),
-            blurRadius: 34,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
+      decoration: _panelDecoration(),
       child: Row(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              color: const Color(0xFF00E5FF).withValues(alpha: 0.10),
-              border: Border.all(
-                color: const Color(0xFF00E5FF).withValues(alpha: 0.28),
-              ),
-            ),
-            child: const Icon(
-              Icons.calendar_month_rounded,
-              color: Color(0xFF00E5FF),
-            ),
-          ),
+          _IconBadge(icon: Icons.calendar_month_rounded),
           const SizedBox(width: 14),
           const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Wochenplan erstellen',
+                  'Plan Builder',
                   style: TextStyle(
                     color: Color(0xFFEAF2F4),
                     fontSize: 18,
@@ -231,7 +202,7 @@ class _PlansHero extends StatelessWidget {
                 ),
                 SizedBox(height: 4),
                 Text(
-                  'Lege fest, was an welchem Tag trainiert wird.',
+                  'Geführt erstellen: Basis, Woche, Übungen.',
                   style: TextStyle(
                     color: Color(0xFF8A93A3),
                     fontSize: 13,
@@ -268,14 +239,14 @@ class _PlanCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final muscleGroups = exercises
-        .expand((exercise) => exercise.muscleGroups)
-        .toSet()
-        .toList()
-      ..sort();
     final trainingDays = plan.days
         .where((day) => !day.isRestDay && day.exerciseIds.isNotEmpty)
         .length;
+    final muscleGroups = exercises
+        .expand((exercise) => exercise.muscleGroups)
+        .map((group) => group.trim())
+        .where((group) => group.isNotEmpty)
+        .toSet();
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -284,154 +255,116 @@ class _PlanCard extends StatelessWidget {
         color: const Color(0xFF08111A),
         border: Border.all(
           color: isActive
-              ? const Color(0xFF00E5FF).withValues(alpha: 0.52)
+              ? const Color(0xFF00E5FF).withValues(alpha: 0.42)
               : const Color(0xFF00E5FF).withValues(alpha: 0.14),
-          width: isActive ? 1.4 : 1,
         ),
         boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF00E5FF).withValues(alpha: isActive ? 0.18 : 0.06),
-            blurRadius: isActive ? 34 : 20,
-            spreadRadius: isActive ? 1 : 0,
-          ),
+          if (isActive)
+            BoxShadow(
+              color: const Color(0xFF00E5FF).withValues(alpha: 0.14),
+              blurRadius: 28,
+              spreadRadius: 1,
+            ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _IconBadge(
+                icon: isActive ? Icons.check_circle_rounded : Icons.fitness_center_rounded,
+              ),
+              const SizedBox(width: 13),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            plan.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Color(0xFFEAF2F4),
-                              fontSize: 20,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                        ),
-                        if (isActive) const _ActiveBadge(),
-                      ],
-                    ),
-                    const SizedBox(height: 5),
                     Text(
-                      '$trainingDays Trainingstage · ${exercises.length} Übungen · ${muscleGroups.length} Muskelgruppen',
+                      plan.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFFEAF2F4),
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '$trainingDays Trainingstage · ${exercises.length} Übungen · ${muscleGroups.length} Muskelgruppen · Pause ${_formatRestSecondsLabel(plan.restSeconds)}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Color(0xFF8A93A3),
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        fontSize: 13,
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              _SmallCircleButton(icon: Icons.edit_rounded, onTap: onEdit),
-              const SizedBox(width: 8),
-              _SmallCircleButton(icon: Icons.delete_outline_rounded, onTap: onDelete),
+              PopupMenuButton<String>(
+                color: const Color(0xFF09131B),
+                iconColor: const Color(0xFFEAF2F4),
+                onSelected: (value) {
+                  switch (value) {
+                    case 'activate':
+                      onActivate();
+                      break;
+                    case 'edit':
+                      onEdit();
+                      break;
+                    case 'delete':
+                      onDelete();
+                      break;
+                  }
+                },
+                itemBuilder: (context) => [
+                  if (!isActive)
+                    const PopupMenuItem(
+                      value: 'activate',
+                      child: Text('Aktivieren'),
+                    ),
+                  const PopupMenuItem(value: 'edit', child: Text('Bearbeiten')),
+                  const PopupMenuItem(value: 'delete', child: Text('Löschen')),
+                ],
+              ),
             ],
           ),
           const SizedBox(height: 14),
-          _WeekPreview(days: plan.days),
-          if (muscleGroups.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final group in muscleGroups) _MuscleGroupPill(label: group),
-              ],
-            ),
-          ],
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final day in plan.days)
+                _DayMiniChip(
+                  label: WorkoutPlanDay.shortWeekdayName(day.weekday),
+                  active: !day.isRestDay && day.exerciseIds.isNotEmpty,
+                ),
+            ],
+          ),
           const SizedBox(height: 16),
-          _ActivatePlanButton(
-            isActive: isActive,
-            onTap: isActive ? null : onActivate,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _WeekPreview extends StatelessWidget {
-  const _WeekPreview({required this.days});
-
-  final List<WorkoutPlanDay> days;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 7,
-      runSpacing: 7,
-      children: [
-        for (final day in days)
-          _WeekdayPill(
-            label: WorkoutPlanDay.shortWeekdayName(day.weekday),
-            value: day.isRestDay ? 'Rest' : day.name,
-            active: !day.isRestDay && day.exerciseIds.isNotEmpty,
-          ),
-      ],
-    );
-  }
-}
-
-class _WeekdayPill extends StatelessWidget {
-  const _WeekdayPill({
-    required this.label,
-    required this.value,
-    required this.active,
-  });
-
-  final String label;
-  final String value;
-  final bool active;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: active
-            ? const Color(0xFF00E5FF).withValues(alpha: 0.10)
-            : const Color(0xFF0B1620),
-        border: Border.all(
-          color: active
-              ? const Color(0xFF00E5FF).withValues(alpha: 0.28)
-              : const Color(0xFF1E293B),
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: active ? const Color(0xFF00E5FF) : const Color(0xFF64748B),
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(width: 5),
-          Text(
-            value,
-            style: TextStyle(
-              color: active ? const Color(0xFFEAF2F4) : const Color(0xFF8A93A3),
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: _SmallActionButton(
+                  label: isActive ? 'Aktiv' : 'Aktivieren',
+                  icon: isActive ? Icons.check_rounded : Icons.play_arrow_rounded,
+                  filled: !isActive,
+                  onTap: isActive ? () {} : onActivate,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _SmallActionButton(
+                  label: 'Bearbeiten',
+                  icon: Icons.edit_rounded,
+                  filled: false,
+                  onTap: onEdit,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -462,15 +395,18 @@ class _PlanEditorScreenState extends State<_PlanEditorScreen> {
     'Nacken',
   ];
 
-  final TextEditingController _planNameController = TextEditingController();
-  final List<_DayDraft> _dayDrafts = [];
-
   late final Box<dynamic> _settingsBox;
   late final Box<WorkoutPlan> _workoutPlanBox;
   late final Box<Exercise> _exerciseBox;
-  late bool _makeActiveAfterSave;
 
-  bool get _isEditing => widget.plan != null;
+  final TextEditingController _planNameController = TextEditingController();
+  final TextEditingController _restMinutesController = TextEditingController();
+  final TextEditingController _trainingSequenceController = TextEditingController();
+  final List<_DayDraft> _dayDrafts = [];
+
+  var _step = 0;
+  var _selectedDayIndex = 0;
+  var _makeActiveAfterSave = true;
 
   @override
   void initState() {
@@ -480,39 +416,40 @@ class _PlanEditorScreenState extends State<_PlanEditorScreen> {
     _workoutPlanBox = Hive.box<WorkoutPlan>('workout_plans');
     _exerciseBox = Hive.box<Exercise>('exercises');
 
-    final activePlanId = _settingsBox.get(PlanBuilderScreen.selectedWorkoutPlanKey);
-    _makeActiveAfterSave = widget.plan?.id == activePlanId || activePlanId == null;
-
     final plan = widget.plan;
 
     if (plan == null) {
       _planNameController.text = 'Push Pull Legs';
-      _dayDrafts.addAll([
-        _DayDraft.createTrainingDay(DateTime.monday, 'Push'),
-        _DayDraft.createTrainingDay(DateTime.tuesday, 'Pull'),
-        _DayDraft.createTrainingDay(DateTime.wednesday, 'Legs'),
-        _DayDraft.createRestDay(DateTime.thursday),
-        _DayDraft.createTrainingDay(DateTime.friday, 'Push'),
-        _DayDraft.createTrainingDay(DateTime.saturday, 'Pull'),
-        _DayDraft.createRestDay(DateTime.sunday),
-      ]);
+      _restMinutesController.text = _formatRestMinutesInput(180);
+      _makeActiveAfterSave = true;
+      _applyTemplate(_PlanTemplate.pushPullLegs, notify: false);
       return;
     }
 
     _planNameController.text = plan.name;
+    _restMinutesController.text = _formatRestMinutesInput(plan.restSeconds);
+    _makeActiveAfterSave = _settingsBox.get(PlanBuilderScreen.selectedWorkoutPlanKey) == plan.id;
+    _dayDrafts.addAll(plan.days.map((day) => _DayDraft.fromPlanDay(day, _exerciseBox)));
+    _setTrainingNameSequence(_inferTrainingNameSequence(_dayDrafts));
 
-    for (var weekday = DateTime.monday; weekday <= DateTime.sunday; weekday++) {
-      final day = plan.dayForWeekday(weekday);
-      _dayDrafts.add(_DayDraft.fromPlanDay(day, _exerciseBox));
+    if (_dayDrafts.isEmpty) {
+      _applyTemplate(_PlanTemplate.empty, notify: false);
     }
+
+    _rebalanceTrainingDayNames();
+
+    final firstTrainingDay = _dayDrafts.indexWhere((day) => !day.isRestDay);
+    _selectedDayIndex = firstTrainingDay == -1 ? 0 : firstTrainingDay;
   }
 
   @override
   void dispose() {
     _planNameController.dispose();
+    _restMinutesController.dispose();
+    _trainingSequenceController.dispose();
 
-    for (final draft in _dayDrafts) {
-      draft.dispose();
+    for (final dayDraft in _dayDrafts) {
+      dayDraft.dispose();
     }
 
     super.dispose();
@@ -528,64 +465,37 @@ class _PlanEditorScreenState extends State<_PlanEditorScreen> {
         elevation: 0,
         centerTitle: true,
         title: Text(
-          _isEditing ? 'Plan bearbeiten' : 'Plan erstellen',
+          widget.plan == null ? 'Plan erstellen' : 'Plan bearbeiten',
           style: const TextStyle(fontWeight: FontWeight.w900),
         ),
+        actions: [
+          TextButton(
+            onPressed: _savePlan,
+            child: const Text('Speichern'),
+          ),
+        ],
       ),
       body: SafeArea(
         top: false,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 12, 18, 30),
+        child: Column(
           children: [
-            _EditorPanel(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _EditorSectionTitle(
-                    title: 'Plan Name',
-                    subtitle: 'Beispiel: Push Pull Legs, Upper Lower oder Full Body.',
-                  ),
-                  const SizedBox(height: 12),
-                  _NeonTextField(
-                    controller: _planNameController,
-                    hintText: 'z. B. Push Pull Legs',
-                    icon: Icons.drive_file_rename_outline_rounded,
-                  ),
-                  const SizedBox(height: 14),
-                  _ActiveSwitchTile(
-                    value: _makeActiveAfterSave,
-                    onChanged: (value) {
-                      setState(() {
-                        _makeActiveAfterSave = value;
-                      });
-                    },
-                  ),
-                ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 10, 18, 0),
+              child: _StepTabs(
+                currentStep: _step,
+                onSelected: (step) => setState(() => _step = step),
               ),
             ),
-            const SizedBox(height: 18),
-            const _EditorSectionTitle(
-              title: 'Wochenablauf',
-              subtitle: 'Lege für jeden Tag fest, ob trainiert wird oder Restday ist.',
-            ),
-            const SizedBox(height: 12),
-            for (var index = 0; index < _dayDrafts.length; index++) ...[
-              _DayDraftCard(
-                draft: _dayDrafts[index],
-                availableMuscleGroups: _availableMuscleGroups,
-                onChanged: () => setState(() {}),
-                onAddExercise: () => _addExerciseToDay(index),
-                onRemoveExercise: (exerciseIndex) =>
-                    _removeExerciseFromDay(index, exerciseIndex),
-                onToggleRestDay: (isRestDay) =>
-                    _setRestDay(index: index, isRestDay: isRestDay),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: _buildStep(),
               ),
-              const SizedBox(height: 12),
-            ],
-            const SizedBox(height: 8),
-            _SavePlanButton(
-              isEditing: _isEditing,
-              onTap: _savePlan,
+            ),
+            _EditorBottomBar(
+              step: _step,
+              onBack: _step == 0 ? null : () => setState(() => _step--),
+              onNext: _step == 2 ? _savePlan : () => setState(() => _step++),
             ),
           ],
         ),
@@ -593,43 +503,1369 @@ class _PlanEditorScreenState extends State<_PlanEditorScreen> {
     );
   }
 
-  void _addExerciseToDay(int dayIndex) {
-    setState(() {
-      final day = _dayDrafts[dayIndex];
-      day.isRestDay = false;
-      day.exerciseDrafts.add(_ExerciseDraft.createEmpty());
-    });
+  Widget _buildStep() {
+    switch (_step) {
+      case 0:
+        return _buildBasicsStep();
+      case 1:
+        return _buildWeekStep();
+      default:
+        return _buildExercisesStep();
+    }
   }
 
-  void _removeExerciseFromDay(int dayIndex, int exerciseIndex) {
-    setState(() {
-      final day = _dayDrafts[dayIndex];
-      final removedDraft = day.exerciseDrafts.removeAt(exerciseIndex);
-      removedDraft.dispose();
+  Widget _buildBasicsStep() {
+    return ListView(
+      key: const ValueKey('basics'),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+      children: [
+        _EditorPanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _SectionTitle(
+                title: 'Basis',
+                subtitle: 'Name, Satzpause und Aktivierung.',
+              ),
+              const SizedBox(height: 16),
+              _NeonTextField(
+                controller: _planNameController,
+                label: 'Plan Name',
+                hintText: 'z. B. Push Pull Legs',
+                icon: Icons.drive_file_rename_outline_rounded,
+              ),
+              const SizedBox(height: 14),
+              _MetricTextField(
+                controller: _restMinutesController,
+                label: 'Satzpause in Minuten',
+                hintText: '3',
+                decimal: true,
+              ),
+              const SizedBox(height: 14),
+              _NeonTextField(
+                controller: _trainingSequenceController,
+                label: 'Trainingstage-Reihenfolge',
+                hintText: 'z. B. Push, Pull, Legs',
+                icon: Icons.repeat_rounded,
+                onChanged: (_) {
+                  setState(() {
+                    _rebalanceTrainingDayNames();
+                  });
+                },
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Die aktiven Trainingstage folgen immer dieser Reihenfolge. Wenn du Restdays änderst, bleiben z. B. Push → Pull → Legs korrekt sortiert.',
+                style: TextStyle(
+                  color: Color(0xFF8A93A3),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 14),
+              _ActiveSwitchTile(
+                value: _makeActiveAfterSave,
+                onChanged: (value) {
+                  setState(() {
+                    _makeActiveAfterSave = value;
+                  });
+                },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        _EditorPanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _SectionTitle(
+                title: 'Schnellstart',
+                subtitle: 'Template wählen und danach die Übungen ergänzen.',
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _TemplateChip(
+                    label: 'Push Pull Legs',
+                    onTap: () => _confirmAndApplyTemplate(_PlanTemplate.pushPullLegs),
+                  ),
+                  _TemplateChip(
+                    label: 'Upper Lower',
+                    onTap: () => _confirmAndApplyTemplate(_PlanTemplate.upperLower),
+                  ),
+                  _TemplateChip(
+                    label: 'Full Body',
+                    onTap: () => _confirmAndApplyTemplate(_PlanTemplate.fullBody),
+                  ),
+                  _TemplateChip(
+                    label: 'Torso / Limbs',
+                    onTap: () => _confirmAndApplyTemplate(_PlanTemplate.torsoLimbs),
+                  ),
+                  _TemplateChip(
+                    label: 'Bro Split',
+                    onTap: () => _confirmAndApplyTemplate(_PlanTemplate.broSplit),
+                  ),
+                  _TemplateChip(
+                    label: 'Arnold Split',
+                    onTap: () => _confirmAndApplyTemplate(_PlanTemplate.arnoldSplit),
+                  ),
+                  _TemplateChip(
+                    label: 'PHUL',
+                    onTap: () => _confirmAndApplyTemplate(_PlanTemplate.phul),
+                  ),
+                  _TemplateChip(
+                    label: '5x5 Strength',
+                    onTap: () => _confirmAndApplyTemplate(_PlanTemplate.strength5x5),
+                  ),
+                  _TemplateChip(
+                    label: 'Bodybuilding 4 Tage',
+                    onTap: () => _confirmAndApplyTemplate(_PlanTemplate.bodybuilding4Day),
+                  ),
+                  _TemplateChip(
+                    label: 'Leer starten',
+                    onTap: () => _confirmAndApplyTemplate(_PlanTemplate.empty),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 
-      if (day.exerciseDrafts.isEmpty) {
-        day.exerciseDrafts.add(_ExerciseDraft.createEmpty());
+  Widget _buildWeekStep() {
+    return ListView(
+      key: const ValueKey('week'),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+      children: [
+        const _SectionTitle(
+          title: 'Woche',
+          subtitle: 'Lege fest, welche Tage Trainingstage sind.',
+        ),
+        const SizedBox(height: 14),
+        for (var index = 0; index < _dayDrafts.length; index++) ...[
+          _WeekDayCard(
+            draft: _dayDrafts[index],
+            selected: index == _selectedDayIndex,
+            onSelect: () {
+              setState(() {
+                _selectedDayIndex = index;
+                _step = 2;
+              });
+            },
+            onToggleRestDay: (value) {
+              setState(() {
+                _dayDrafts[index].setRestDay(value);
+                _rebalanceTrainingDayNames();
+                _selectedDayIndex = _bestSelectedDayIndex(_selectedDayIndex);
+              });
+            },
+            onNameChanged: (value) {
+              setState(() {
+                _updateTrainingSequenceFromDay(index, value);
+              });
+            },
+            onChanged: () => setState(() {}),
+          ),
+          const SizedBox(height: 10),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildExercisesStep() {
+    final selectedDay = _dayDrafts[_selectedDayIndex];
+
+    return ListView(
+      key: const ValueKey('exercises'),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+      children: [
+        _DaySelector(
+          days: _dayDrafts,
+          selectedIndex: _selectedDayIndex,
+          onSelected: (index) {
+            setState(() {
+              _selectedDayIndex = index;
+            });
+          },
+        ),
+        const SizedBox(height: 14),
+        _EditorPanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: _SectionTitle(
+                      title: selectedDay.isRestDay ? 'Restday' : selectedDay.name,
+                      subtitle: selectedDay.isRestDay
+                          ? 'An diesem Tag gibt es keine Übungen.'
+                          : '${selectedDay.exerciseDrafts.length} Übungen geplant.',
+                    ),
+                  ),
+                  _RestDaySwitch(
+                    value: selectedDay.isRestDay,
+                    onChanged: (value) {
+                      setState(() {
+                        selectedDay.setRestDay(value);
+                        _rebalanceTrainingDayNames();
+                        _selectedDayIndex = _bestSelectedDayIndex(_selectedDayIndex);
+                      });
+                    },
+                  ),
+                ],
+              ),
+              if (!selectedDay.isRestDay) ...[
+                const SizedBox(height: 14),
+                _NeonTextField(
+                  controller: selectedDay.nameController,
+                  label: 'Tagesname',
+                  hintText: 'z. B. Push',
+                  icon: Icons.label_rounded,
+                  onChanged: (value) {
+                    setState(() {
+                      _updateTrainingSequenceFromDay(_selectedDayIndex, value);
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                for (var index = 0; index < selectedDay.exerciseDrafts.length; index++) ...[
+                  _ExerciseDraftCard(
+                    index: index,
+                    draft: selectedDay.exerciseDrafts[index],
+                    onChanged: () => setState(() {}),
+                    onRemove: selectedDay.exerciseDrafts.length == 1
+                        ? null
+                        : () {
+                            setState(() {
+                              selectedDay.removeExercise(index);
+                            });
+                          },
+                    onPickMuscles: () => _openMusclePicker(selectedDay.exerciseDrafts[index]),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                _AddExerciseButton(
+                  onTap: () {
+                    setState(() {
+                      selectedDay.addExercise();
+                    });
+                  },
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _confirmAndApplyTemplate(_PlanTemplate template) async {
+    final hasContent = _dayDrafts.any((day) =>
+        !day.isRestDay &&
+        day.exerciseDrafts.any((exercise) => exercise.name.trim().isNotEmpty));
+
+    if (hasContent) {
+      final shouldReplace = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            backgroundColor: const Color(0xFF09131B),
+            title: const Text('Template übernehmen?'),
+            content: const Text(
+              'Die aktuelle Wochenstruktur und Übungen werden durch das Template ersetzt.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Abbrechen'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Übernehmen'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (shouldReplace != true) {
+        return;
       }
-    });
+    }
+
+    _applyTemplate(template);
   }
 
-  void _setRestDay({required int index, required bool isRestDay}) {
-    setState(() {
+  void _applyTemplate(_PlanTemplate template, {bool notify = true}) {
+    for (final dayDraft in _dayDrafts) {
+      dayDraft.dispose();
+    }
+
+    _dayDrafts.clear();
+    _planNameController.text = _templatePlanName(template);
+    _setTrainingNameSequence(_templateTrainingSequence(template));
+
+    switch (template) {
+      case _PlanTemplate.pushPullLegs:
+        _dayDrafts.addAll([
+          _DayDraft.createTrainingDay(
+            DateTime.monday,
+            'Push',
+            exercises: _pushExercises(),
+          ),
+          _DayDraft.createTrainingDay(
+            DateTime.tuesday,
+            'Pull',
+            exercises: _pullExercises(),
+          ),
+          _DayDraft.createTrainingDay(
+            DateTime.wednesday,
+            'Legs',
+            exercises: _legsExercises(),
+          ),
+          _DayDraft.createRestDay(DateTime.thursday, fallbackTrainingName: 'Push'),
+          _DayDraft.createTrainingDay(
+            DateTime.friday,
+            'Push',
+            exercises: _pushExercises(),
+          ),
+          _DayDraft.createTrainingDay(
+            DateTime.saturday,
+            'Pull',
+            exercises: _pullExercises(),
+          ),
+          _DayDraft.createRestDay(DateTime.sunday, fallbackTrainingName: 'Legs'),
+        ]);
+        break;
+      case _PlanTemplate.upperLower:
+        _dayDrafts.addAll([
+          _DayDraft.createTrainingDay(
+            DateTime.monday,
+            'Upper',
+            exercises: _upperExercises(),
+          ),
+          _DayDraft.createTrainingDay(
+            DateTime.tuesday,
+            'Lower',
+            exercises: _lowerExercises(),
+          ),
+          _DayDraft.createRestDay(DateTime.wednesday, fallbackTrainingName: 'Upper'),
+          _DayDraft.createTrainingDay(
+            DateTime.thursday,
+            'Upper',
+            exercises: _upperExercises(),
+          ),
+          _DayDraft.createTrainingDay(
+            DateTime.friday,
+            'Lower',
+            exercises: _lowerExercises(),
+          ),
+          _DayDraft.createRestDay(DateTime.saturday, fallbackTrainingName: 'Upper'),
+          _DayDraft.createRestDay(DateTime.sunday, fallbackTrainingName: 'Lower'),
+        ]);
+        break;
+      case _PlanTemplate.fullBody:
+        _dayDrafts.addAll([
+          _DayDraft.createTrainingDay(
+            DateTime.monday,
+            'Full Body',
+            exercises: _fullBodyExercises(),
+          ),
+          _DayDraft.createRestDay(DateTime.tuesday, fallbackTrainingName: 'Full Body'),
+          _DayDraft.createTrainingDay(
+            DateTime.wednesday,
+            'Full Body',
+            exercises: _fullBodyExercises(),
+          ),
+          _DayDraft.createRestDay(DateTime.thursday, fallbackTrainingName: 'Full Body'),
+          _DayDraft.createTrainingDay(
+            DateTime.friday,
+            'Full Body',
+            exercises: _fullBodyExercises(),
+          ),
+          _DayDraft.createRestDay(DateTime.saturday, fallbackTrainingName: 'Full Body'),
+          _DayDraft.createRestDay(DateTime.sunday, fallbackTrainingName: 'Full Body'),
+        ]);
+        break;
+      case _PlanTemplate.torsoLimbs:
+        _dayDrafts.addAll([
+          _DayDraft.createTrainingDay(
+            DateTime.monday,
+            'Torso',
+            exercises: _torsoExercises(),
+          ),
+          _DayDraft.createTrainingDay(
+            DateTime.tuesday,
+            'Limbs',
+            exercises: _limbsExercises(),
+          ),
+          _DayDraft.createRestDay(DateTime.wednesday, fallbackTrainingName: 'Torso'),
+          _DayDraft.createTrainingDay(
+            DateTime.thursday,
+            'Torso',
+            exercises: _torsoExercises(),
+          ),
+          _DayDraft.createTrainingDay(
+            DateTime.friday,
+            'Limbs',
+            exercises: _limbsExercises(),
+          ),
+          _DayDraft.createRestDay(DateTime.saturday, fallbackTrainingName: 'Torso'),
+          _DayDraft.createRestDay(DateTime.sunday, fallbackTrainingName: 'Limbs'),
+        ]);
+        break;
+      case _PlanTemplate.broSplit:
+        _dayDrafts.addAll([
+          _DayDraft.createTrainingDay(
+            DateTime.monday,
+            'Chest',
+            exercises: _chestExercises(),
+          ),
+          _DayDraft.createTrainingDay(
+            DateTime.tuesday,
+            'Back',
+            exercises: _backExercises(),
+          ),
+          _DayDraft.createTrainingDay(
+            DateTime.wednesday,
+            'Legs',
+            exercises: _legsExercises(),
+          ),
+          _DayDraft.createTrainingDay(
+            DateTime.thursday,
+            'Shoulders',
+            exercises: _shouldersExercises(),
+          ),
+          _DayDraft.createTrainingDay(
+            DateTime.friday,
+            'Arms',
+            exercises: _armsExercises(),
+          ),
+          _DayDraft.createRestDay(DateTime.saturday, fallbackTrainingName: 'Chest'),
+          _DayDraft.createRestDay(DateTime.sunday, fallbackTrainingName: 'Back'),
+        ]);
+        break;
+      case _PlanTemplate.arnoldSplit:
+        _dayDrafts.addAll([
+          _DayDraft.createTrainingDay(
+            DateTime.monday,
+            'Chest & Back',
+            exercises: _chestBackExercises(),
+          ),
+          _DayDraft.createTrainingDay(
+            DateTime.tuesday,
+            'Shoulders & Arms',
+            exercises: _shouldersArmsExercises(),
+          ),
+          _DayDraft.createTrainingDay(
+            DateTime.wednesday,
+            'Legs',
+            exercises: _legsExercises(),
+          ),
+          _DayDraft.createRestDay(DateTime.thursday, fallbackTrainingName: 'Chest & Back'),
+          _DayDraft.createTrainingDay(
+            DateTime.friday,
+            'Chest & Back',
+            exercises: _chestBackExercises(),
+          ),
+          _DayDraft.createTrainingDay(
+            DateTime.saturday,
+            'Shoulders & Arms',
+            exercises: _shouldersArmsExercises(),
+          ),
+          _DayDraft.createRestDay(DateTime.sunday, fallbackTrainingName: 'Legs'),
+        ]);
+        break;
+      case _PlanTemplate.phul:
+        _dayDrafts.addAll([
+          _DayDraft.createTrainingDay(
+            DateTime.monday,
+            'Upper Power',
+            exercises: _upperPowerExercises(),
+          ),
+          _DayDraft.createTrainingDay(
+            DateTime.tuesday,
+            'Lower Power',
+            exercises: _lowerPowerExercises(),
+          ),
+          _DayDraft.createRestDay(DateTime.wednesday, fallbackTrainingName: 'Upper Hypertrophy'),
+          _DayDraft.createTrainingDay(
+            DateTime.thursday,
+            'Upper Hypertrophy',
+            exercises: _upperHypertrophyExercises(),
+          ),
+          _DayDraft.createTrainingDay(
+            DateTime.friday,
+            'Lower Hypertrophy',
+            exercises: _lowerHypertrophyExercises(),
+          ),
+          _DayDraft.createRestDay(DateTime.saturday, fallbackTrainingName: 'Upper Power'),
+          _DayDraft.createRestDay(DateTime.sunday, fallbackTrainingName: 'Lower Power'),
+        ]);
+        break;
+      case _PlanTemplate.strength5x5:
+        _dayDrafts.addAll([
+          _DayDraft.createTrainingDay(
+            DateTime.monday,
+            'Strength A',
+            exercises: _strengthAExercises(),
+          ),
+          _DayDraft.createRestDay(DateTime.tuesday, fallbackTrainingName: 'Strength B'),
+          _DayDraft.createTrainingDay(
+            DateTime.wednesday,
+            'Strength B',
+            exercises: _strengthBExercises(),
+          ),
+          _DayDraft.createRestDay(DateTime.thursday, fallbackTrainingName: 'Strength A'),
+          _DayDraft.createTrainingDay(
+            DateTime.friday,
+            'Strength A',
+            exercises: _strengthAExercises(),
+          ),
+          _DayDraft.createRestDay(DateTime.saturday, fallbackTrainingName: 'Strength B'),
+          _DayDraft.createRestDay(DateTime.sunday, fallbackTrainingName: 'Strength A'),
+        ]);
+        break;
+      case _PlanTemplate.bodybuilding4Day:
+        _dayDrafts.addAll([
+          _DayDraft.createTrainingDay(
+            DateTime.monday,
+            'Chest & Triceps',
+            exercises: _chestTricepsExercises(),
+          ),
+          _DayDraft.createTrainingDay(
+            DateTime.tuesday,
+            'Back & Biceps',
+            exercises: _backBicepsExercises(),
+          ),
+          _DayDraft.createRestDay(DateTime.wednesday, fallbackTrainingName: 'Legs'),
+          _DayDraft.createTrainingDay(
+            DateTime.thursday,
+            'Legs',
+            exercises: _legsExercises(),
+          ),
+          _DayDraft.createTrainingDay(
+            DateTime.friday,
+            'Shoulders',
+            exercises: _shouldersExercises(),
+          ),
+          _DayDraft.createRestDay(DateTime.saturday, fallbackTrainingName: 'Chest & Triceps'),
+          _DayDraft.createRestDay(DateTime.sunday, fallbackTrainingName: 'Back & Biceps'),
+        ]);
+        break;
+      case _PlanTemplate.empty:
+        _dayDrafts.addAll([
+          _DayDraft.createRestDay(DateTime.monday),
+          _DayDraft.createRestDay(DateTime.tuesday),
+          _DayDraft.createRestDay(DateTime.wednesday),
+          _DayDraft.createRestDay(DateTime.thursday),
+          _DayDraft.createRestDay(DateTime.friday),
+          _DayDraft.createRestDay(DateTime.saturday),
+          _DayDraft.createRestDay(DateTime.sunday),
+        ]);
+        break;
+    }
+
+    _rebalanceTrainingDayNames();
+
+    final firstTrainingDay = _dayDrafts.indexWhere((day) => !day.isRestDay);
+    _selectedDayIndex = firstTrainingDay == -1 ? 0 : firstTrainingDay;
+
+    if (notify) {
+      setState(() {});
+    }
+  }
+
+  String _templatePlanName(_PlanTemplate template) {
+    switch (template) {
+      case _PlanTemplate.pushPullLegs:
+        return 'Push Pull Legs';
+      case _PlanTemplate.upperLower:
+        return 'Upper Lower';
+      case _PlanTemplate.fullBody:
+        return 'Full Body';
+      case _PlanTemplate.torsoLimbs:
+        return 'Torso / Limbs';
+      case _PlanTemplate.broSplit:
+        return 'Bro Split';
+      case _PlanTemplate.arnoldSplit:
+        return 'Arnold Split';
+      case _PlanTemplate.phul:
+        return 'PHUL';
+      case _PlanTemplate.strength5x5:
+        return '5x5 Strength';
+      case _PlanTemplate.bodybuilding4Day:
+        return 'Bodybuilding 4 Tage';
+      case _PlanTemplate.empty:
+        return 'Neuer Plan';
+    }
+  }
+
+
+  List<String> _templateTrainingSequence(_PlanTemplate template) {
+    switch (template) {
+      case _PlanTemplate.pushPullLegs:
+        return const ['Push', 'Pull', 'Legs'];
+      case _PlanTemplate.upperLower:
+        return const ['Upper', 'Lower'];
+      case _PlanTemplate.fullBody:
+        return const ['Full Body'];
+      case _PlanTemplate.torsoLimbs:
+        return const ['Torso', 'Limbs'];
+      case _PlanTemplate.broSplit:
+        return const ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms'];
+      case _PlanTemplate.arnoldSplit:
+        return const ['Chest & Back', 'Shoulders & Arms', 'Legs'];
+      case _PlanTemplate.phul:
+        return const ['Upper Power', 'Lower Power', 'Upper Hypertrophy', 'Lower Hypertrophy'];
+      case _PlanTemplate.strength5x5:
+        return const ['Strength A', 'Strength B'];
+      case _PlanTemplate.bodybuilding4Day:
+        return const ['Chest & Triceps', 'Back & Biceps', 'Legs', 'Shoulders'];
+      case _PlanTemplate.empty:
+        return const ['Training'];
+    }
+  }
+
+  void _setTrainingNameSequence(List<String> names) {
+    final cleaned = _cleanTrainingNameSequence(names);
+    _trainingSequenceController.text = _formatTrainingNameSequence(cleaned);
+  }
+
+  List<String> _trainingNameSequence() {
+    return _cleanTrainingNameSequence(
+      _trainingSequenceController.text
+          .split(RegExp(r'[,;\n]'))
+          .map((name) => name.trim())
+          .where((name) => name.isNotEmpty),
+    );
+  }
+
+  List<String> _cleanTrainingNameSequence(Iterable<String> names) {
+    final cleaned = <String>[];
+
+    for (final name in names) {
+      final cleanName = _DayDraft._cleanTrainingName(name, DateTime.monday);
+
+      if (cleanName.isEmpty || cleanName == 'Training') {
+        continue;
+      }
+
+      cleaned.add(cleanName);
+    }
+
+    return cleaned.isEmpty ? const ['Training'] : cleaned;
+  }
+
+  String _formatTrainingNameSequence(List<String> names) {
+    return names.join(', ');
+  }
+
+  List<String> _inferTrainingNameSequence(List<_DayDraft> dayDrafts) {
+    final sequence = <String>[];
+
+    for (final day in dayDrafts) {
+      if (day.isRestDay) {
+        continue;
+      }
+
+      final cleanName = _DayDraft._cleanTrainingName(day.name, day.weekday);
+      if (!sequence.contains(cleanName)) {
+        sequence.add(cleanName);
+      }
+    }
+
+    return sequence.isEmpty ? const ['Training'] : sequence;
+  }
+
+  void _rebalanceTrainingDayNames() {
+    final sequence = _trainingNameSequence();
+    var trainingIndex = 0;
+
+    for (final day in _dayDrafts) {
+      if (day.isRestDay) {
+        continue;
+      }
+
+      final nextName = sequence[trainingIndex % sequence.length];
+      day.setTrainingName(nextName);
+      trainingIndex++;
+    }
+  }
+
+  int _bestSelectedDayIndex(int preferredIndex) {
+    if (_dayDrafts.isEmpty) {
+      return 0;
+    }
+
+    if (preferredIndex >= 0 &&
+        preferredIndex < _dayDrafts.length &&
+        !_dayDrafts[preferredIndex].isRestDay) {
+      return preferredIndex;
+    }
+
+    final firstTrainingDay = _dayDrafts.indexWhere((day) => !day.isRestDay);
+    return firstTrainingDay == -1 ? 0 : firstTrainingDay;
+  }
+
+  void _updateTrainingSequenceFromDay(int dayIndex, String value) {
+    if (dayIndex < 0 || dayIndex >= _dayDrafts.length) {
+      return;
+    }
+
+    final day = _dayDrafts[dayIndex];
+    if (day.isRestDay) {
+      return;
+    }
+
+    final sequence = _trainingNameSequence();
+    final trainingPosition = _trainingPositionOfDay(dayIndex);
+
+    if (trainingPosition == -1) {
+      return;
+    }
+
+    final sequenceIndex = trainingPosition % sequence.length;
+    sequence[sequenceIndex] = _DayDraft._cleanTrainingName(value, day.weekday);
+    _setTrainingNameSequence(sequence);
+    _rebalanceTrainingDayNames();
+  }
+
+  int _trainingPositionOfDay(int dayIndex) {
+    var trainingPosition = 0;
+
+    for (var index = 0; index < _dayDrafts.length; index++) {
       final day = _dayDrafts[index];
-      day.isRestDay = isRestDay;
 
-      if (isRestDay) {
-        for (final exercise in day.exerciseDrafts) {
-          exercise.dispose();
-        }
-        day.exerciseDrafts.clear();
-        day.nameController.text = 'Restday';
-      } else {
-        day.nameController.text = WorkoutPlanDay.weekdayName(day.weekday);
-        if (day.exerciseDrafts.isEmpty) {
-          day.exerciseDrafts.add(_ExerciseDraft.createEmpty());
-        }
+      if (day.isRestDay) {
+        continue;
       }
+
+      if (index == dayIndex) {
+        return trainingPosition;
+      }
+
+      trainingPosition++;
+    }
+
+    return -1;
+  }
+
+  List<_ExerciseDraft> _pushExercises() {
+    return [
+      _ExerciseDraft.createPreset(
+        name: 'Bankdrücken',
+        muscleGroups: {'Brust', 'Trizeps'},
+        sets: 4,
+        reps: 8,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Schulterdrücken',
+        muscleGroups: {'Schultern', 'Trizeps'},
+        sets: 3,
+        reps: 10,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Trizeps Pushdown',
+        muscleGroups: {'Trizeps'},
+        sets: 3,
+        reps: 12,
+      ),
+    ];
+  }
+
+  List<_ExerciseDraft> _pullExercises() {
+    return [
+      _ExerciseDraft.createPreset(
+        name: 'Klimmzüge',
+        muscleGroups: {'Rücken', 'Bizeps'},
+        sets: 3,
+        reps: 8,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Rudern',
+        muscleGroups: {'Rücken', 'Bizeps'},
+        sets: 4,
+        reps: 10,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Bizeps Curls',
+        muscleGroups: {'Bizeps'},
+        sets: 3,
+        reps: 12,
+      ),
+    ];
+  }
+
+  List<_ExerciseDraft> _legsExercises() {
+    return [
+      _ExerciseDraft.createPreset(
+        name: 'Kniebeugen',
+        muscleGroups: {'Quads', 'Po'},
+        sets: 4,
+        reps: 8,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Romanian Deadlift',
+        muscleGroups: {'Hamstrings', 'Po'},
+        sets: 3,
+        reps: 10,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Beinpresse',
+        muscleGroups: {'Quads'},
+        sets: 3,
+        reps: 12,
+      ),
+    ];
+  }
+
+  List<_ExerciseDraft> _upperExercises() {
+    return [
+      _ExerciseDraft.createPreset(
+        name: 'Bankdrücken',
+        muscleGroups: {'Brust', 'Trizeps'},
+        sets: 4,
+        reps: 8,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Rudern',
+        muscleGroups: {'Rücken', 'Bizeps'},
+        sets: 4,
+        reps: 10,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Schulterdrücken',
+        muscleGroups: {'Schultern', 'Trizeps'},
+        sets: 3,
+        reps: 10,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Bizeps Curls',
+        muscleGroups: {'Bizeps'},
+        sets: 3,
+        reps: 12,
+      ),
+    ];
+  }
+
+  List<_ExerciseDraft> _lowerExercises() {
+    return [
+      _ExerciseDraft.createPreset(
+        name: 'Kniebeugen',
+        muscleGroups: {'Quads', 'Po'},
+        sets: 4,
+        reps: 8,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Romanian Deadlift',
+        muscleGroups: {'Hamstrings', 'Po'},
+        sets: 3,
+        reps: 10,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Hip Thrust',
+        muscleGroups: {'Po', 'Hamstrings'},
+        sets: 3,
+        reps: 10,
+      ),
+    ];
+  }
+
+  List<_ExerciseDraft> _fullBodyExercises() {
+    return [
+      _ExerciseDraft.createPreset(
+        name: 'Kniebeugen',
+        muscleGroups: {'Quads', 'Po'},
+        sets: 3,
+        reps: 8,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Bankdrücken',
+        muscleGroups: {'Brust', 'Trizeps'},
+        sets: 3,
+        reps: 8,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Rudern',
+        muscleGroups: {'Rücken', 'Bizeps'},
+        sets: 3,
+        reps: 10,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Plank',
+        muscleGroups: {'Bauch/Core'},
+        sets: 3,
+        reps: 30,
+      ),
+    ];
+  }
+
+  List<_ExerciseDraft> _torsoExercises() {
+    return [
+      _ExerciseDraft.createPreset(
+        name: 'Bankdrücken',
+        muscleGroups: {'Brust', 'Trizeps'},
+        sets: 4,
+        reps: 8,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Rudern',
+        muscleGroups: {'Rücken', 'Bizeps'},
+        sets: 4,
+        reps: 10,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Schulterdrücken',
+        muscleGroups: {'Schultern', 'Trizeps'},
+        sets: 3,
+        reps: 10,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Lat Pulldown',
+        muscleGroups: {'Rücken', 'Bizeps'},
+        sets: 3,
+        reps: 10,
+      ),
+    ];
+  }
+
+  List<_ExerciseDraft> _limbsExercises() {
+    return [
+      _ExerciseDraft.createPreset(
+        name: 'Kniebeugen',
+        muscleGroups: {'Quads', 'Po'},
+        sets: 4,
+        reps: 8,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Romanian Deadlift',
+        muscleGroups: {'Hamstrings', 'Po'},
+        sets: 3,
+        reps: 10,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Bizeps Curls',
+        muscleGroups: {'Bizeps'},
+        sets: 3,
+        reps: 12,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Trizeps Pushdown',
+        muscleGroups: {'Trizeps'},
+        sets: 3,
+        reps: 12,
+      ),
+    ];
+  }
+
+  List<_ExerciseDraft> _chestExercises() {
+    return [
+      _ExerciseDraft.createPreset(
+        name: 'Bankdrücken',
+        muscleGroups: {'Brust', 'Trizeps'},
+        sets: 4,
+        reps: 8,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Schrägbankdrücken',
+        muscleGroups: {'Brust', 'Schultern', 'Trizeps'},
+        sets: 3,
+        reps: 10,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Chest Fly',
+        muscleGroups: {'Brust'},
+        sets: 3,
+        reps: 12,
+      ),
+    ];
+  }
+
+  List<_ExerciseDraft> _backExercises() {
+    return [
+      _ExerciseDraft.createPreset(
+        name: 'Klimmzüge',
+        muscleGroups: {'Rücken', 'Bizeps'},
+        sets: 3,
+        reps: 8,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Rudern',
+        muscleGroups: {'Rücken', 'Bizeps'},
+        sets: 4,
+        reps: 10,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Lat Pulldown',
+        muscleGroups: {'Rücken', 'Bizeps'},
+        sets: 3,
+        reps: 10,
+      ),
+    ];
+  }
+
+  List<_ExerciseDraft> _shouldersExercises() {
+    return [
+      _ExerciseDraft.createPreset(
+        name: 'Schulterdrücken',
+        muscleGroups: {'Schultern', 'Trizeps'},
+        sets: 4,
+        reps: 8,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Seitheben',
+        muscleGroups: {'Schultern'},
+        sets: 3,
+        reps: 12,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Reverse Fly',
+        muscleGroups: {'Schultern', 'Rücken'},
+        sets: 3,
+        reps: 12,
+      ),
+    ];
+  }
+
+  List<_ExerciseDraft> _armsExercises() {
+    return [
+      _ExerciseDraft.createPreset(
+        name: 'Bizeps Curls',
+        muscleGroups: {'Bizeps'},
+        sets: 3,
+        reps: 12,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Hammer Curls',
+        muscleGroups: {'Bizeps'},
+        sets: 3,
+        reps: 12,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Trizeps Pushdown',
+        muscleGroups: {'Trizeps'},
+        sets: 3,
+        reps: 12,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Overhead Trizeps Extension',
+        muscleGroups: {'Trizeps'},
+        sets: 3,
+        reps: 12,
+      ),
+    ];
+  }
+
+  List<_ExerciseDraft> _chestBackExercises() {
+    return [
+      _ExerciseDraft.createPreset(
+        name: 'Bankdrücken',
+        muscleGroups: {'Brust', 'Trizeps'},
+        sets: 4,
+        reps: 8,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Klimmzüge',
+        muscleGroups: {'Rücken', 'Bizeps'},
+        sets: 3,
+        reps: 8,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Schrägbankdrücken',
+        muscleGroups: {'Brust', 'Schultern', 'Trizeps'},
+        sets: 3,
+        reps: 10,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Rudern',
+        muscleGroups: {'Rücken', 'Bizeps'},
+        sets: 4,
+        reps: 10,
+      ),
+    ];
+  }
+
+  List<_ExerciseDraft> _shouldersArmsExercises() {
+    return [
+      _ExerciseDraft.createPreset(
+        name: 'Schulterdrücken',
+        muscleGroups: {'Schultern', 'Trizeps'},
+        sets: 4,
+        reps: 8,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Seitheben',
+        muscleGroups: {'Schultern'},
+        sets: 3,
+        reps: 12,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Bizeps Curls',
+        muscleGroups: {'Bizeps'},
+        sets: 3,
+        reps: 12,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Trizeps Pushdown',
+        muscleGroups: {'Trizeps'},
+        sets: 3,
+        reps: 12,
+      ),
+    ];
+  }
+
+
+  List<_ExerciseDraft> _upperPowerExercises() {
+    return [
+      _ExerciseDraft.createPreset(
+        name: 'Bankdrücken',
+        muscleGroups: {'Brust', 'Trizeps'},
+        sets: 5,
+        reps: 5,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Rudern',
+        muscleGroups: {'Rücken', 'Bizeps'},
+        sets: 5,
+        reps: 5,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Schulterdrücken',
+        muscleGroups: {'Schultern', 'Trizeps'},
+        sets: 4,
+        reps: 6,
+      ),
+    ];
+  }
+
+  List<_ExerciseDraft> _lowerPowerExercises() {
+    return [
+      _ExerciseDraft.createPreset(
+        name: 'Kniebeugen',
+        muscleGroups: {'Quads', 'Po'},
+        sets: 5,
+        reps: 5,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Kreuzheben',
+        muscleGroups: {'Hamstrings', 'Po', 'Rücken'},
+        sets: 3,
+        reps: 5,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Beinpresse',
+        muscleGroups: {'Quads'},
+        sets: 4,
+        reps: 8,
+      ),
+    ];
+  }
+
+  List<_ExerciseDraft> _upperHypertrophyExercises() {
+    return [
+      _ExerciseDraft.createPreset(
+        name: 'Schrägbankdrücken',
+        muscleGroups: {'Brust', 'Schultern', 'Trizeps'},
+        sets: 3,
+        reps: 10,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Lat Pulldown',
+        muscleGroups: {'Rücken', 'Bizeps'},
+        sets: 3,
+        reps: 10,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Seitheben',
+        muscleGroups: {'Schultern'},
+        sets: 3,
+        reps: 12,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Bizeps Curls',
+        muscleGroups: {'Bizeps'},
+        sets: 3,
+        reps: 12,
+      ),
+    ];
+  }
+
+  List<_ExerciseDraft> _lowerHypertrophyExercises() {
+    return [
+      _ExerciseDraft.createPreset(
+        name: 'Romanian Deadlift',
+        muscleGroups: {'Hamstrings', 'Po'},
+        sets: 3,
+        reps: 10,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Bulgarian Split Squats',
+        muscleGroups: {'Quads', 'Po'},
+        sets: 3,
+        reps: 10,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Hip Thrust',
+        muscleGroups: {'Po', 'Hamstrings'},
+        sets: 3,
+        reps: 10,
+      ),
+    ];
+  }
+
+  List<_ExerciseDraft> _strengthAExercises() {
+    return [
+      _ExerciseDraft.createPreset(
+        name: 'Kniebeugen',
+        muscleGroups: {'Quads', 'Po'},
+        sets: 5,
+        reps: 5,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Bankdrücken',
+        muscleGroups: {'Brust', 'Trizeps'},
+        sets: 5,
+        reps: 5,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Rudern',
+        muscleGroups: {'Rücken', 'Bizeps'},
+        sets: 5,
+        reps: 5,
+      ),
+    ];
+  }
+
+  List<_ExerciseDraft> _strengthBExercises() {
+    return [
+      _ExerciseDraft.createPreset(
+        name: 'Kniebeugen',
+        muscleGroups: {'Quads', 'Po'},
+        sets: 5,
+        reps: 5,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Schulterdrücken',
+        muscleGroups: {'Schultern', 'Trizeps'},
+        sets: 5,
+        reps: 5,
+      ),
+      _ExerciseDraft.createPreset(
+        name: 'Kreuzheben',
+        muscleGroups: {'Hamstrings', 'Po', 'Rücken'},
+        sets: 1,
+        reps: 5,
+      ),
+    ];
+  }
+
+  List<_ExerciseDraft> _chestTricepsExercises() {
+    return [
+      ..._chestExercises(),
+      _ExerciseDraft.createPreset(
+        name: 'Trizeps Pushdown',
+        muscleGroups: {'Trizeps'},
+        sets: 3,
+        reps: 12,
+      ),
+    ];
+  }
+
+  List<_ExerciseDraft> _backBicepsExercises() {
+    return [
+      ..._backExercises(),
+      _ExerciseDraft.createPreset(
+        name: 'Bizeps Curls',
+        muscleGroups: {'Bizeps'},
+        sets: 3,
+        reps: 12,
+      ),
+    ];
+  }
+
+  Future<void> _openMusclePicker(_ExerciseDraft draft) async {
+    final selected = {...draft.muscleGroups};
+
+    final result = await showModalBottomSheet<Set<String>>(
+      context: context,
+      backgroundColor: const Color(0xFF09131B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Muskelgruppen',
+                      style: TextStyle(
+                        color: Color(0xFFEAF2F4),
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        for (final muscleGroup in _availableMuscleGroups)
+                          FilterChip(
+                            label: Text(muscleGroup),
+                            selected: selected.contains(muscleGroup),
+                            selectedColor: const Color(0xFF00E5FF).withValues(alpha: 0.22),
+                            checkmarkColor: const Color(0xFF00E5FF),
+                            onSelected: (value) {
+                              setSheetState(() {
+                                if (value) {
+                                  selected.add(muscleGroup);
+                                } else {
+                                  selected.remove(muscleGroup);
+                                }
+                              });
+                            },
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () => Navigator.of(context).pop(selected),
+                        child: const Text('Übernehmen'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (result == null) {
+      return;
+    }
+
+    setState(() {
+      draft.muscleGroups
+        ..clear()
+        ..addAll(result);
     });
   }
 
@@ -641,56 +1877,11 @@ class _PlanEditorScreenState extends State<_PlanEditorScreen> {
       return;
     }
 
-    final hasAtLeastOneTrainingDay = _dayDrafts.any(
-      (day) => !day.isRestDay && day.exerciseDrafts.isNotEmpty,
-    );
+    final restSeconds = _restSecondsFromInput();
 
-    if (!hasAtLeastOneTrainingDay) {
-      _showError('Bitte erstelle mindestens einen Trainingstag.');
+    if (restSeconds == null) {
+      _showError('Bitte gib eine gültige Satzpause in Minuten ein.');
       return;
-    }
-
-    for (final day in _dayDrafts) {
-      if (day.isRestDay) {
-        continue;
-      }
-
-      if (day.name.trim().isEmpty) {
-        _showError('${WorkoutPlanDay.weekdayName(day.weekday)} braucht einen Namen.');
-        return;
-      }
-
-      if (day.exerciseDrafts.isEmpty) {
-        _showError('${day.name} braucht mindestens eine Übung.');
-        return;
-      }
-
-      for (final exercise in day.exerciseDrafts) {
-        if (exercise.name.trim().isEmpty) {
-          _showError('Jede Übung braucht einen Namen.');
-          return;
-        }
-
-        if (exercise.muscleGroups.isEmpty) {
-          _showError('Jede Übung braucht mindestens eine Muskelgruppe.');
-          return;
-        }
-
-        if (exercise.plannedSets == null) {
-          _showError('Sätze müssen eine ganze Zahl grösser als 0 sein.');
-          return;
-        }
-
-        if (exercise.plannedReps == null) {
-          _showError('Wiederholungen müssen eine ganze Zahl grösser als 0 sein.');
-          return;
-        }
-
-        if (exercise.plannedWeight == null) {
-          _showError('Gewicht muss eine Zahl ab 0 sein.');
-          return;
-        }
-      }
     }
 
     final planId = widget.plan?.id ?? _createId('plan');
@@ -703,16 +1894,46 @@ class _PlanEditorScreenState extends State<_PlanEditorScreen> {
         continue;
       }
 
+      final dayName = day.name.trim();
+
+      if (dayName.isEmpty) {
+        _showError('Bitte benenne ${WorkoutPlanDay.weekdayName(day.weekday)}.');
+        return;
+      }
+
+      final validExerciseDrafts = day.exerciseDrafts
+          .where((draft) => draft.name.trim().isNotEmpty)
+          .toList();
+
+      if (validExerciseDrafts.isEmpty) {
+        _showError('Füge bei $dayName mindestens eine Übung hinzu oder setze den Tag auf Restday.');
+        return;
+      }
+
       final dayExerciseIds = <String>[];
 
-      for (final draft in day.exerciseDrafts) {
+      for (final draft in validExerciseDrafts) {
+        final sets = draft.sets;
+        final reps = draft.reps;
+        final weight = draft.weight;
+
+        if (sets == null || reps == null || weight == null) {
+          _showError('Prüfe Sätze, Wiederholungen und Gewicht bei "${draft.name.trim()}".');
+          return;
+        }
+
+        if (draft.muscleGroups.isEmpty) {
+          _showError('Wähle mindestens eine Muskelgruppe bei "${draft.name.trim()}".');
+          return;
+        }
+
         final exercise = Exercise(
           id: draft.id,
           name: draft.name.trim(),
           muscleGroups: draft.muscleGroups.toList()..sort(),
-          plannedSets: draft.plannedSets!,
-          plannedReps: draft.plannedReps!,
-          plannedWeight: draft.plannedWeight!,
+          plannedSets: sets,
+          plannedReps: reps,
+          plannedWeight: weight,
         );
 
         await _exerciseBox.put(exercise.id, exercise);
@@ -726,10 +1947,17 @@ class _PlanEditorScreenState extends State<_PlanEditorScreen> {
       days.add(
         WorkoutPlanDay.trainingDay(
           weekday: day.weekday,
-          name: day.name.trim(),
+          name: dayName,
           exerciseIds: dayExerciseIds,
         ),
       );
+    }
+
+    final hasTrainingDay = days.any((day) => !day.isRestDay && day.exerciseIds.isNotEmpty);
+
+    if (!hasTrainingDay) {
+      _showError('Der Plan braucht mindestens einen Trainingstag.');
+      return;
     }
 
     await _deleteRemovedExercises(planId, exerciseIds.toSet());
@@ -738,7 +1966,7 @@ class _PlanEditorScreenState extends State<_PlanEditorScreen> {
       id: planId,
       name: planName,
       exerciseIds: exerciseIds,
-      restSeconds: widget.plan?.restSeconds ?? 90,
+      restSeconds: restSeconds,
       days: days,
     );
 
@@ -757,10 +1985,7 @@ class _PlanEditorScreenState extends State<_PlanEditorScreen> {
     Navigator.of(context).pop();
   }
 
-  Future<void> _deleteRemovedExercises(
-    String planId,
-    Set<String> keptExerciseIds,
-  ) async {
+  Future<void> _deleteRemovedExercises(String planId, Set<String> keptExerciseIds) async {
     final oldPlan = widget.plan;
 
     if (oldPlan == null) {
@@ -782,6 +2007,18 @@ class _PlanEditorScreenState extends State<_PlanEditorScreen> {
     }
   }
 
+  int? _restSecondsFromInput() {
+    final text = _restMinutesController.text.trim().replaceAll(',', '.');
+    final minutes = double.tryParse(text);
+
+    if (minutes == null || minutes <= 0) {
+      return null;
+    }
+
+    final seconds = (minutes * 60).round();
+    return seconds < 1 ? null : seconds;
+  }
+
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -797,37 +2034,60 @@ class _PlanEditorScreenState extends State<_PlanEditorScreen> {
   }
 }
 
+enum _PlanTemplate {
+  pushPullLegs,
+  upperLower,
+  fullBody,
+  torsoLimbs,
+  broSplit,
+  arnoldSplit,
+  phul,
+  strength5x5,
+  bodybuilding4Day,
+  empty,
+}
+
 class _DayDraft {
   _DayDraft({
     required this.weekday,
     required String name,
     required this.isRestDay,
     required List<_ExerciseDraft> exerciseDrafts,
+    String? fallbackTrainingName,
   })  : nameController = TextEditingController(text: name),
-        exerciseDrafts = [...exerciseDrafts];
+        exerciseDrafts = [...exerciseDrafts],
+        _lastTrainingName = _cleanTrainingName(fallbackTrainingName ?? name, weekday);
 
-  factory _DayDraft.createTrainingDay(int weekday, String name) {
+  factory _DayDraft.createTrainingDay(
+    int weekday,
+    String name, {
+    List<_ExerciseDraft>? exercises,
+  }) {
+    final cleanName = _cleanTrainingName(name, weekday);
+
     return _DayDraft(
       weekday: weekday,
-      name: name,
+      name: cleanName,
       isRestDay: false,
-      exerciseDrafts: [_ExerciseDraft.createEmpty()],
+      exerciseDrafts: exercises ?? [_ExerciseDraft.createEmpty()],
+      fallbackTrainingName: cleanName,
     );
   }
 
-  factory _DayDraft.createRestDay(int weekday) {
+  factory _DayDraft.createRestDay(
+    int weekday, {
+    String? fallbackTrainingName,
+  }) {
     return _DayDraft(
       weekday: weekday,
       name: 'Restday',
       isRestDay: true,
       exerciseDrafts: const [],
+      fallbackTrainingName: fallbackTrainingName,
     );
   }
 
-  factory _DayDraft.fromPlanDay(
-    WorkoutPlanDay day,
-    Box<Exercise> exerciseBox,
-  ) {
+  factory _DayDraft.fromPlanDay(WorkoutPlanDay day, Box<Exercise> exerciseBox) {
     if (day.isRestDay) {
       return _DayDraft.createRestDay(day.weekday);
     }
@@ -847,6 +2107,7 @@ class _DayDraft {
       name: day.name,
       isRestDay: false,
       exerciseDrafts: exerciseDrafts,
+      fallbackTrainingName: day.name,
     );
   }
 
@@ -855,7 +2116,64 @@ class _DayDraft {
   final List<_ExerciseDraft> exerciseDrafts;
   bool isRestDay;
 
+  String _lastTrainingName;
+  List<_ExerciseDraft>? _storedExerciseDrafts;
+
   String get name => nameController.text;
+
+  void setTrainingName(String value) {
+    final cleanName = _cleanTrainingName(value, weekday);
+    nameController.text = cleanName;
+    _lastTrainingName = cleanName;
+  }
+
+  void rememberTrainingName() {
+    if (isRestDay) {
+      return;
+    }
+
+    final cleanName = _cleanTrainingName(nameController.text, weekday);
+    if (cleanName != 'Training') {
+      _lastTrainingName = cleanName;
+    }
+  }
+
+  void setRestDay(bool value) {
+    if (isRestDay == value) {
+      return;
+    }
+
+    if (value) {
+      rememberTrainingName();
+      _storedExerciseDrafts = [...exerciseDrafts];
+      exerciseDrafts.clear();
+      isRestDay = true;
+      nameController.text = 'Restday';
+      return;
+    }
+
+    isRestDay = false;
+    nameController.text = _cleanTrainingName(_lastTrainingName, weekday);
+
+    final stored = _storedExerciseDrafts;
+    if (stored != null && stored.isNotEmpty) {
+      exerciseDrafts.addAll(stored);
+      _storedExerciseDrafts = null;
+    }
+
+    if (exerciseDrafts.isEmpty) {
+      exerciseDrafts.add(_ExerciseDraft.createEmpty());
+    }
+  }
+
+  void addExercise() {
+    exerciseDrafts.add(_ExerciseDraft.createEmpty());
+  }
+
+  void removeExercise(int index) {
+    final removed = exerciseDrafts.removeAt(index);
+    removed.dispose();
+  }
 
   void dispose() {
     nameController.dispose();
@@ -863,6 +2181,25 @@ class _DayDraft {
     for (final draft in exerciseDrafts) {
       draft.dispose();
     }
+
+    for (final draft in _storedExerciseDrafts ?? const <_ExerciseDraft>[]) {
+      draft.dispose();
+    }
+  }
+
+  static String _cleanTrainingName(String? value, int weekday) {
+    final clean = value?.trim() ?? '';
+
+    if (clean.isEmpty || clean.toLowerCase() == 'restday') {
+      return 'Training';
+    }
+
+    final weekdayName = WorkoutPlanDay.weekdayName(weekday);
+    if (clean == weekdayName) {
+      return 'Training';
+    }
+
+    return clean;
   }
 }
 
@@ -877,13 +2214,7 @@ class _ExerciseDraft {
   })  : nameController = TextEditingController(text: name),
         setsController = TextEditingController(text: plannedSets.toString()),
         repsController = TextEditingController(text: plannedReps.toString()),
-        weightController = TextEditingController(
-          text: plannedWeight == 0
-              ? ''
-              : plannedWeight.roundToDouble() == plannedWeight
-                  ? plannedWeight.toInt().toString()
-                  : plannedWeight.toStringAsFixed(1),
-        ),
+        weightController = TextEditingController(text: _formatWeightInput(plannedWeight)),
         muscleGroups = {...muscleGroups};
 
   factory _ExerciseDraft.createEmpty() {
@@ -897,23 +2228,31 @@ class _ExerciseDraft {
     );
   }
 
+  factory _ExerciseDraft.createPreset({
+    required String name,
+    required Set<String> muscleGroups,
+    required int sets,
+    required int reps,
+    double weight = 0,
+  }) {
+    return _ExerciseDraft(
+      id: 'exercise_${DateTime.now().microsecondsSinceEpoch}_${UniqueKey()}',
+      name: name,
+      muscleGroups: muscleGroups,
+      plannedSets: sets,
+      plannedReps: reps,
+      plannedWeight: weight,
+    );
+  }
+
   factory _ExerciseDraft.fromExercise(Exercise exercise) {
-    final normalizedExercise = Exercise(
+    return _ExerciseDraft(
       id: exercise.id,
       name: exercise.name,
-      muscleGroups: exercise.muscleGroups,
+      muscleGroups: exercise.muscleGroups.toSet(),
       plannedSets: exercise.plannedSets,
       plannedReps: exercise.plannedReps,
       plannedWeight: exercise.plannedWeight,
-    );
-
-    return _ExerciseDraft(
-      id: normalizedExercise.id,
-      name: normalizedExercise.name,
-      muscleGroups: normalizedExercise.muscleGroups.toSet(),
-      plannedSets: normalizedExercise.plannedSets,
-      plannedReps: normalizedExercise.plannedReps,
-      plannedWeight: normalizedExercise.plannedWeight,
     );
   }
 
@@ -926,19 +2265,18 @@ class _ExerciseDraft {
 
   String get name => nameController.text;
 
-  int? get plannedSets {
+  int? get sets {
     final value = int.tryParse(setsController.text.trim());
     return value == null || value < 1 ? null : value;
   }
 
-  int? get plannedReps {
+  int? get reps {
     final value = int.tryParse(repsController.text.trim());
     return value == null || value < 1 ? null : value;
   }
 
-  double? get plannedWeight {
+  double? get weight {
     final text = weightController.text.trim().replaceAll(',', '.');
-
     if (text.isEmpty) {
       return 0;
     }
@@ -947,123 +2285,315 @@ class _ExerciseDraft {
     return value == null || value < 0 ? null : value;
   }
 
+  String get muscleSummary {
+    if (muscleGroups.isEmpty) {
+      return 'Keine Muskelgruppe gewählt';
+    }
+
+    final sorted = muscleGroups.toList()..sort();
+    return sorted.join(', ');
+  }
+
   void dispose() {
     nameController.dispose();
     setsController.dispose();
     repsController.dispose();
     weightController.dispose();
   }
+
+  static String _formatWeightInput(double weight) {
+    if (weight == 0) {
+      return '0';
+    }
+
+    final rounded = weight.roundToDouble();
+    if (rounded == weight) {
+      return rounded.toInt().toString();
+    }
+
+    return weight.toStringAsFixed(1);
+  }
 }
 
-class _DayDraftCard extends StatelessWidget {
-  const _DayDraftCard({
-    required this.draft,
-    required this.availableMuscleGroups,
-    required this.onChanged,
-    required this.onAddExercise,
-    required this.onRemoveExercise,
-    required this.onToggleRestDay,
-  });
+class _StepTabs extends StatelessWidget {
+  const _StepTabs({required this.currentStep, required this.onSelected});
 
-  final _DayDraft draft;
-  final List<String> availableMuscleGroups;
-  final VoidCallback onChanged;
-  final VoidCallback onAddExercise;
-  final ValueChanged<int> onRemoveExercise;
-  final ValueChanged<bool> onToggleRestDay;
+  final int currentStep;
+  final ValueChanged<int> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    return _EditorPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return Row(
+      children: [
+        Expanded(
+          child: _StepTab(
+            index: 0,
+            label: 'Basis',
+            selected: currentStep == 0,
+            onTap: () => onSelected(0),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _StepTab(
+            index: 1,
+            label: 'Woche',
+            selected: currentStep == 1,
+            onTap: () => onSelected(1),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _StepTab(
+            index: 2,
+            label: 'Übungen',
+            selected: currentStep == 2,
+            onTap: () => onSelected(2),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StepTab extends StatelessWidget {
+  const _StepTab({
+    required this.index,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final int index;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Ink(
+          height: 48,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            color: selected
+                ? const Color(0xFF00E5FF).withValues(alpha: 0.16)
+                : const Color(0xFF08111A),
+            border: Border.all(
+              color: selected
+                  ? const Color(0xFF00E5FF).withValues(alpha: 0.42)
+                  : const Color(0xFF00E5FF).withValues(alpha: 0.12),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                width: 42,
-                height: 42,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(15),
-                  color: const Color(0xFF00E5FF).withValues(alpha: 0.10),
-                  border: Border.all(
-                    color: const Color(0xFF00E5FF).withValues(alpha: 0.26),
-                  ),
-                ),
-                child: Text(
-                  WorkoutPlanDay.shortWeekdayName(draft.weekday),
-                  style: const TextStyle(
-                    color: Color(0xFF00E5FF),
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      WorkoutPlanDay.weekdayName(draft.weekday),
-                      style: const TextStyle(
-                        color: Color(0xFFEAF2F4),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      draft.isRestDay
-                          ? 'Kein Training an diesem Tag'
-                          : '${draft.exerciseDrafts.length} Übungen',
-                      style: const TextStyle(
-                        color: Color(0xFF8A93A3),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Switch(
-                value: draft.isRestDay,
-                activeThumbColor: const Color(0xFF00E5FF),
-                onChanged: onToggleRestDay,
-              ),
-              const Text(
-                'Rest',
+              Text(
+                '${index + 1}',
                 style: TextStyle(
-                  color: Color(0xFF8A93A3),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
+                  color: selected ? const Color(0xFF00E5FF) : const Color(0xFF8A93A3),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(width: 7),
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected ? const Color(0xFFEAF2F4) : const Color(0xFF8A93A3),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
                 ),
               ),
             ],
           ),
-          if (!draft.isRestDay) ...[
-            const SizedBox(height: 14),
-            _NeonTextField(
-              controller: draft.nameController,
-              hintText: 'z. B. Push, Pull, Legs',
-              icon: Icons.label_rounded,
+        ),
+      ),
+    );
+  }
+}
+
+class _WeekDayCard extends StatelessWidget {
+  const _WeekDayCard({
+    required this.draft,
+    required this.selected,
+    required this.onSelect,
+    required this.onToggleRestDay,
+    required this.onNameChanged,
+    required this.onChanged,
+  });
+
+  final _DayDraft draft;
+  final bool selected;
+  final VoidCallback onSelect;
+  final ValueChanged<bool> onToggleRestDay;
+  final ValueChanged<String> onNameChanged;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        color: const Color(0xFF08111A),
+        border: Border.all(
+          color: selected
+              ? const Color(0xFF00E5FF).withValues(alpha: 0.38)
+              : const Color(0xFF00E5FF).withValues(alpha: 0.12),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(15),
+              color: const Color(0xFF00E5FF).withValues(alpha: 0.10),
+              border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.24)),
             ),
-            const SizedBox(height: 14),
-            for (var index = 0; index < draft.exerciseDrafts.length; index++) ...[
-              _ExerciseDraftCard(
-                index: index,
-                draft: draft.exerciseDrafts[index],
-                availableMuscleGroups: availableMuscleGroups,
-                onChanged: onChanged,
-                onRemove: draft.exerciseDrafts.length == 1
-                    ? null
-                    : () => onRemoveExercise(index),
+            child: Text(
+              WorkoutPlanDay.shortWeekdayName(draft.weekday),
+              style: const TextStyle(
+                color: Color(0xFF00E5FF),
+                fontWeight: FontWeight.w900,
               ),
-              const SizedBox(height: 10),
-            ],
-            _AddExerciseButton(onTap: onAddExercise),
-          ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: draft.nameController,
+                  enabled: !draft.isRestDay,
+                  onChanged: onNameChanged,
+                  style: const TextStyle(
+                    color: Color(0xFFEAF2F4),
+                    fontWeight: FontWeight.w900,
+                  ),
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    hintText: 'Tagesname',
+                    hintStyle: TextStyle(color: Color(0xFF64748B)),
+                  ),
+                ),
+                Text(
+                  draft.isRestDay
+                      ? 'Restday'
+                      : '${draft.exerciseDrafts.length} Übungen',
+                  style: const TextStyle(
+                    color: Color(0xFF8A93A3),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _RestDaySwitch(
+            value: draft.isRestDay,
+            onChanged: onToggleRestDay,
+          ),
+          IconButton(
+            onPressed: draft.isRestDay ? null : onSelect,
+            icon: const Icon(Icons.chevron_right_rounded),
+            color: const Color(0xFFEAF2F4),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _RestDaySwitch extends StatelessWidget {
+  const _RestDaySwitch({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final activeColor = value ? const Color(0xFF00E5FF) : const Color(0xFF3DDC97);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        color: const Color(0xFF050A0F),
+        border: Border.all(color: activeColor.withValues(alpha: 0.20)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.fitness_center_rounded,
+            size: 18,
+            color: value ? const Color(0xFF64748B) : const Color(0xFF3DDC97),
+          ),
+          Switch(
+            value: value,
+            activeThumbColor: const Color(0xFF00E5FF),
+            inactiveThumbColor: const Color(0xFF3DDC97),
+            activeTrackColor: const Color(0xFF00E5FF).withValues(alpha: 0.30),
+            inactiveTrackColor: const Color(0xFF3DDC97).withValues(alpha: 0.24),
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            onChanged: onChanged,
+          ),
+          Icon(
+            Icons.bed_rounded,
+            size: 18,
+            color: value ? const Color(0xFF00E5FF) : const Color(0xFF64748B),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DaySelector extends StatelessWidget {
+  const _DaySelector({
+    required this.days,
+    required this.selectedIndex,
+    required this.onSelected,
+  });
+
+  final List<_DayDraft> days;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 54,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: days.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final day = days[index];
+          final selected = index == selectedIndex;
+
+          return ChoiceChip(
+            label: Text(WorkoutPlanDay.shortWeekdayName(day.weekday)),
+            selected: selected,
+            selectedColor: const Color(0xFF00E5FF).withValues(alpha: 0.22),
+            onSelected: (_) => onSelected(index),
+            avatar: Icon(
+              day.isRestDay ? Icons.hotel_rounded : Icons.fitness_center_rounded,
+              size: 16,
+              color: selected ? const Color(0xFF00E5FF) : const Color(0xFF8A93A3),
+            ),
+          );
+        },
       ),
     );
   }
@@ -1073,16 +2603,16 @@ class _ExerciseDraftCard extends StatelessWidget {
   const _ExerciseDraftCard({
     required this.index,
     required this.draft,
-    required this.availableMuscleGroups,
     required this.onChanged,
     required this.onRemove,
+    required this.onPickMuscles,
   });
 
   final int index;
   final _ExerciseDraft draft;
-  final List<String> availableMuscleGroups;
   final VoidCallback onChanged;
   final VoidCallback? onRemove;
+  final VoidCallback onPickMuscles;
 
   @override
   Widget build(BuildContext context) {
@@ -1105,9 +2635,7 @@ class _ExerciseDraftCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
                   color: const Color(0xFF00E5FF).withValues(alpha: 0.10),
-                  border: Border.all(
-                    color: const Color(0xFF00E5FF).withValues(alpha: 0.22),
-                  ),
+                  border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.22)),
                 ),
                 child: Text(
                   '${index + 1}',
@@ -1118,87 +2646,108 @@ class _ExerciseDraftCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              const Expanded(
-                child: Text(
-                  'Übung',
-                  style: TextStyle(
-                    color: Color(0xFFEAF2F4),
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                  ),
+              Expanded(
+                child: _NeonTextField(
+                  controller: draft.nameController,
+                  label: 'Übung',
+                  hintText: 'z. B. Bankdrücken',
+                  icon: Icons.fitness_center_rounded,
+                  onChanged: (_) {
+                    onChanged();
+                  },
                 ),
               ),
-              if (onRemove != null)
-                _SmallCircleButton(
-                  icon: Icons.close_rounded,
-                  onTap: onRemove!,
+              if (onRemove != null) ...[
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: onRemove,
+                  icon: const Icon(Icons.close_rounded),
+                  color: const Color(0xFF8A93A3),
                 ),
+              ],
             ],
-          ),
-          const SizedBox(height: 12),
-          _NeonTextField(
-            controller: draft.nameController,
-            hintText: 'z. B. Bankdrücken',
-            icon: Icons.fitness_center_rounded,
           ),
           const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
-                child: _CompactMetricField(
+                child: _MetricTextField(
                   controller: draft.setsController,
                   label: 'Sätze',
                   hintText: '3',
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _CompactMetricField(
-                  controller: draft.repsController,
-                  label: 'Wdh.',
-                  hintText: '10',
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _CompactMetricField(
-                  controller: draft.weightController,
-                  label: 'Gewicht',
-                  hintText: 'kg',
-                  decimal: true,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          const Text(
-            'Getroffene Muskelgruppen',
-            style: TextStyle(
-              color: Color(0xFF8A93A3),
-              fontWeight: FontWeight.w800,
-              fontSize: 13,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final group in availableMuscleGroups)
-                _SelectableMuscleChip(
-                  label: group,
-                  selected: draft.muscleGroups.contains(group),
-                  onTap: () {
-                    if (draft.muscleGroups.contains(group)) {
-                      draft.muscleGroups.remove(group);
-                    } else {
-                      draft.muscleGroups.add(group);
-                    }
-
+                  onChanged: (_) {
                     onChanged();
                   },
                 ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _MetricTextField(
+                  controller: draft.repsController,
+                  label: 'Wdh.',
+                  hintText: '10',
+                  onChanged: (_) {
+                    onChanged();
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _MetricTextField(
+                  controller: draft.weightController,
+                  label: 'kg',
+                  hintText: '0',
+                  decimal: true,
+                  onChanged: (_) {
+                    onChanged();
+                  },
+                ),
+              ),
             ],
+          ),
+          const SizedBox(height: 12),
+          Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(18),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: onPickMuscles,
+              child: Ink(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  color: const Color(0xFF08111A),
+                  border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.14)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.layers_rounded,
+                      color: Color(0xFF7DD3FC),
+                      size: 18,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        draft.muscleSummary,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFFEAF2F4),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: Color(0xFF8A93A3),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -1206,52 +2755,47 @@ class _ExerciseDraftCard extends StatelessWidget {
   }
 }
 
-class _CompactMetricField extends StatelessWidget {
-  const _CompactMetricField({
-    required this.controller,
-    required this.label,
-    required this.hintText,
-    this.decimal = false,
+class _EditorBottomBar extends StatelessWidget {
+  const _EditorBottomBar({
+    required this.step,
+    required this.onBack,
+    required this.onNext,
   });
 
-  final TextEditingController controller;
-  final String label;
-  final String hintText;
-  final bool decimal;
+  final int step;
+  final VoidCallback? onBack;
+  final VoidCallback onNext;
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      keyboardType: TextInputType.numberWithOptions(decimal: decimal),
-      cursorColor: const Color(0xFF00E5FF),
-      style: const TextStyle(
-        color: Color(0xFFEAF2F4),
-        fontSize: 13,
-        fontWeight: FontWeight.w800,
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF050A0F),
+        border: Border(
+          top: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.10)),
+        ),
       ),
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hintText,
-        labelStyle: const TextStyle(
-          color: Color(0xFF7DD3FC),
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-        ),
-        hintStyle: const TextStyle(color: Color(0xFF586174)),
-        filled: true,
-        fillColor: const Color(0xFF071018),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(
-            color: const Color(0xFF00E5FF).withValues(alpha: 0.14),
+      child: Row(
+        children: [
+          Expanded(
+            child: _SmallActionButton(
+              label: 'Zurück',
+              icon: Icons.arrow_back_rounded,
+              filled: false,
+              onTap: onBack,
+            ),
           ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF00E5FF), width: 1.1),
-        ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _SmallActionButton(
+              label: step == 2 ? 'Speichern' : 'Weiter',
+              icon: step == 2 ? Icons.save_rounded : Icons.arrow_forward_rounded,
+              filled: true,
+              onTap: onNext,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1265,25 +2809,16 @@ class _EditorPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(26),
-        color: const Color(0xFF08111A),
-        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.14)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF00E5FF).withValues(alpha: 0.05),
-            blurRadius: 22,
-          ),
-        ],
-      ),
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: _panelDecoration(),
       child: child,
     );
   }
 }
 
-class _EditorSectionTitle extends StatelessWidget {
-  const _EditorSectionTitle({required this.title, required this.subtitle});
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({required this.title, required this.subtitle});
 
   final String title;
   final String subtitle;
@@ -1299,7 +2834,6 @@ class _EditorSectionTitle extends StatelessWidget {
             color: Color(0xFFEAF2F4),
             fontSize: 18,
             fontWeight: FontWeight.w900,
-            letterSpacing: -0.3,
           ),
         ),
         const SizedBox(height: 4),
@@ -1307,7 +2841,7 @@ class _EditorSectionTitle extends StatelessWidget {
           subtitle,
           style: const TextStyle(
             color: Color(0xFF8A93A3),
-            fontSize: 12,
+            fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -1319,38 +2853,88 @@ class _EditorSectionTitle extends StatelessWidget {
 class _NeonTextField extends StatelessWidget {
   const _NeonTextField({
     required this.controller,
+    required this.label,
     required this.hintText,
     required this.icon,
+    this.onChanged,
   });
 
   final TextEditingController controller;
+  final String label;
   final String hintText;
   final IconData icon;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
-      cursorColor: const Color(0xFF00E5FF),
+      onChanged: onChanged,
       style: const TextStyle(
         color: Color(0xFFEAF2F4),
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w800,
       ),
       decoration: InputDecoration(
+        labelText: label,
         hintText: hintText,
-        hintStyle: const TextStyle(color: Color(0xFF586174)),
         prefixIcon: Icon(icon, color: const Color(0xFF7DD3FC)),
+        labelStyle: const TextStyle(color: Color(0xFF8A93A3)),
+        hintStyle: const TextStyle(color: Color(0xFF64748B)),
         filled: true,
         fillColor: const Color(0xFF050A0F),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
-          borderSide: BorderSide(
-            color: const Color(0xFF00E5FF).withValues(alpha: 0.18),
-          ),
+          borderSide: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.14)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
-          borderSide: const BorderSide(color: Color(0xFF00E5FF), width: 1.2),
+          borderSide: const BorderSide(color: Color(0xFF00E5FF)),
+        ),
+      ),
+    );
+  }
+}
+
+class _MetricTextField extends StatelessWidget {
+  const _MetricTextField({
+    required this.controller,
+    required this.label,
+    required this.hintText,
+    this.decimal = false,
+    this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final String hintText;
+  final bool decimal;
+  final ValueChanged<String>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      onChanged: onChanged,
+      keyboardType: TextInputType.numberWithOptions(decimal: decimal),
+      style: const TextStyle(
+        color: Color(0xFFEAF2F4),
+        fontWeight: FontWeight.w900,
+      ),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hintText,
+        labelStyle: const TextStyle(color: Color(0xFF8A93A3), fontSize: 12),
+        hintStyle: const TextStyle(color: Color(0xFF64748B)),
+        filled: true,
+        fillColor: const Color(0xFF050A0F),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.14)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: const BorderSide(color: Color(0xFF00E5FF)),
         ),
       ),
     );
@@ -1366,7 +2950,7 @@ class _ActiveSwitchTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 8, 10, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         color: const Color(0xFF050A0F),
@@ -1374,8 +2958,6 @@ class _ActiveSwitchTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.radio_button_checked_rounded, color: Color(0xFF7DD3FC)),
-          const SizedBox(width: 12),
           const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1387,12 +2969,12 @@ class _ActiveSwitchTile extends StatelessWidget {
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-                SizedBox(height: 2),
+                SizedBox(height: 3),
                 Text(
-                  'Der HomeScreen zeigt dann die Einheit vom heutigen Wochentag.',
+                  'HomeScreen und Start-Button nutzen diesen Plan.',
                   style: TextStyle(
                     color: Color(0xFF8A93A3),
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -1410,176 +2992,20 @@ class _ActiveSwitchTile extends StatelessWidget {
   }
 }
 
-class _SelectableMuscleChip extends StatelessWidget {
-  const _SelectableMuscleChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
+class _TemplateChip extends StatelessWidget {
+  const _TemplateChip({required this.label, required this.onTap});
 
   final String label;
-  final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(999),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(999),
-        onTap: onTap,
-        child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(999),
-            color: selected
-                ? const Color(0xFF00E5FF).withValues(alpha: 0.18)
-                : const Color(0xFF0B1620),
-            border: Border.all(
-              color: selected
-                  ? const Color(0xFF00E5FF).withValues(alpha: 0.74)
-                  : const Color(0xFF00E5FF).withValues(alpha: 0.16),
-            ),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: const Color(0xFF00E5FF).withValues(alpha: 0.16),
-                      blurRadius: 14,
-                    ),
-                  ]
-                : null,
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: selected ? const Color(0xFFEAFBFF) : const Color(0xFF8A93A3),
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MuscleGroupPill extends StatelessWidget {
-  const _MuscleGroupPill({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        color: const Color(0xFF00E5FF).withValues(alpha: 0.09),
-        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.20)),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Color(0xFF7DD3FC),
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-    );
-  }
-}
-
-class _ActivatePlanButton extends StatelessWidget {
-  const _ActivatePlanButton({required this.isActive, required this.onTap});
-
-  final bool isActive;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: onTap,
-        child: Ink(
-          height: 54,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: isActive
-                ? const LinearGradient(
-                    colors: [Color(0xFF00E5FF), Color(0xFF3DDC97)],
-                  )
-                : const LinearGradient(
-                    colors: [Color(0xFF0F172A), Color(0xFF08111C)],
-                  ),
-            border: Border.all(
-              color: isActive
-                  ? Colors.transparent
-                  : const Color(0xFF00E5FF).withValues(alpha: 0.28),
-            ),
-          ),
-          child: Center(
-            child: Text(
-              isActive ? 'Aktiver Plan' : 'Diesen Plan aktivieren',
-              style: TextStyle(
-                color: isActive ? Colors.black : const Color(0xFFEAF2F4),
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.2,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SavePlanButton extends StatelessWidget {
-  const _SavePlanButton({required this.isEditing, required this.onTap});
-
-  final bool isEditing;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(24),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(24),
-        onTap: onTap,
-        child: Ink(
-          height: 64,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF00E5FF), Color(0xFF3DDC97)],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF00E5FF).withValues(alpha: 0.28),
-                blurRadius: 28,
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          child: Center(
-            child: Text(
-              isEditing ? 'Plan speichern' : 'Plan erstellen',
-              style: const TextStyle(
-                color: Colors.black,
-                fontSize: 17,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-        ),
-      ),
+    return ActionChip(
+      label: Text(label),
+      avatar: const Icon(Icons.auto_awesome_rounded, size: 17),
+      backgroundColor: const Color(0xFF050A0F),
+      side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.18)),
+      onPressed: onTap,
     );
   }
 }
@@ -1593,21 +3019,21 @@ class _AddExerciseButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(20),
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         onTap: onTap,
         child: Ink(
-          height: 46,
+          height: 56,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(20),
             color: const Color(0xFF00E5FF).withValues(alpha: 0.08),
             border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.22)),
           ),
           child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.add_rounded, color: Color(0xFF00E5FF), size: 21),
+              Icon(Icons.add_rounded, color: Color(0xFF7DD3FC)),
               SizedBox(width: 8),
               Text(
                 'Übung hinzufügen',
@@ -1624,72 +3050,8 @@ class _AddExerciseButton extends StatelessWidget {
   }
 }
 
-class _CompactCreateButton extends StatelessWidget {
-  const _CompactCreateButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: Ink(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            gradient: const LinearGradient(
-              colors: [Color(0xFF00E5FF), Color(0xFF3DDC97)],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF00E5FF).withValues(alpha: 0.24),
-                blurRadius: 18,
-              ),
-            ],
-          ),
-          child: const Icon(Icons.add_rounded, color: Colors.black, size: 28),
-        ),
-      ),
-    );
-  }
-}
-
 class _GlowIconButton extends StatelessWidget {
   const _GlowIconButton({required this.icon, required this.onTap});
-
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(17),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(17),
-        onTap: onTap,
-        child: Ink(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(17),
-            color: const Color(0xFF0B1620),
-            border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.24)),
-          ),
-          child: Icon(icon, color: const Color(0xFF7DD3FC)),
-        ),
-      ),
-    );
-  }
-}
-
-class _SmallCircleButton extends StatelessWidget {
-  const _SmallCircleButton({required this.icon, required this.onTap});
 
   final IconData icon;
   final VoidCallback onTap;
@@ -1703,40 +3065,150 @@ class _SmallCircleButton extends StatelessWidget {
         customBorder: const CircleBorder(),
         onTap: onTap,
         child: Ink(
-          width: 38,
-          height: 38,
+          width: 42,
+          height: 42,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: const Color(0xFF0B1620),
-            border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.16)),
+            color: const Color(0xFF00E5FF).withValues(alpha: 0.10),
+            border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.24)),
           ),
-          child: Icon(icon, color: const Color(0xFF8A93A3), size: 20),
+          child: Icon(icon, color: const Color(0xFF7DD3FC)),
         ),
       ),
     );
   }
 }
 
-class _ActiveBadge extends StatelessWidget {
-  const _ActiveBadge();
+class _CompactCreateButton extends StatelessWidget {
+  const _CompactCreateButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 48,
+      child: FilledButton.icon(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+        onPressed: onTap,
+        icon: const Icon(Icons.add_rounded, size: 20),
+        label: const Text('Neu'),
+      ),
+    );
+  }
+}
+
+class _SmallActionButton extends StatelessWidget {
+  const _SmallActionButton({
+    required this.label,
+    required this.icon,
+    required this.filled,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool filled;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Ink(
+          height: 48,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            color: filled
+                ? const Color(0xFF00E5FF)
+                : const Color(0xFF00E5FF).withValues(alpha: 0.08),
+            border: Border.all(
+              color: filled
+                  ? Colors.transparent
+                  : const Color(0xFF00E5FF).withValues(alpha: 0.20),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 18,
+                color: filled ? Colors.black : const Color(0xFF7DD3FC),
+              ),
+              const SizedBox(width: 7),
+              Text(
+                label,
+                style: TextStyle(
+                  color: filled ? Colors.black : const Color(0xFFEAF2F4),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _IconBadge extends StatelessWidget {
+  const _IconBadge({required this.icon});
+
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      width: 48,
+      height: 48,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF00E5FF), Color(0xFF3DDC97)],
+        borderRadius: BorderRadius.circular(18),
+        color: const Color(0xFF00E5FF).withValues(alpha: 0.10),
+        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.28)),
+      ),
+      child: Icon(icon, color: const Color(0xFF00E5FF)),
+    );
+  }
+}
+
+class _DayMiniChip extends StatelessWidget {
+  const _DayMiniChip({required this.label, required this.active});
+
+  final String label;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 38,
+      height: 32,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: active
+            ? const Color(0xFF00E5FF).withValues(alpha: 0.16)
+            : const Color(0xFF050A0F),
+        border: Border.all(
+          color: active
+              ? const Color(0xFF00E5FF).withValues(alpha: 0.34)
+              : const Color(0xFF00E5FF).withValues(alpha: 0.08),
         ),
       ),
-      child: const Text(
-        'AKTIV',
+      child: Text(
+        label,
         style: TextStyle(
-          color: Colors.black,
+          color: active ? const Color(0xFF7DD3FC) : const Color(0xFF64748B),
           fontWeight: FontWeight.w900,
-          fontSize: 10,
-          letterSpacing: 0.5,
+          fontSize: 12,
         ),
       ),
     );
@@ -1750,47 +3222,63 @@ class _EmptyPlansState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 86,
-            height: 86,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color(0xFF00E5FF).withValues(alpha: 0.08),
-              border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.22)),
-            ),
-            child: const Icon(
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(26),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
               Icons.calendar_month_rounded,
-              color: Color(0xFF00E5FF),
-              size: 42,
+              color: Color(0xFF7DD3FC),
+              size: 54,
             ),
-          ),
-          const SizedBox(height: 18),
-          const Text(
-            'Noch keine Pläne',
-            style: TextStyle(
-              color: Color(0xFFEAF2F4),
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
+            const SizedBox(height: 16),
+            const Text(
+              'Noch kein Plan',
+              style: TextStyle(
+                color: Color(0xFFEAF2F4),
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Erstelle deinen ersten Wochenplan mit Trainingstagen, Restdays und Übungen.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Color(0xFF8A93A3),
-              fontWeight: FontWeight.w600,
+            const SizedBox(height: 8),
+            const Text(
+              'Erstelle deinen ersten Wochenplan mit wenigen Schritten.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Color(0xFF8A93A3),
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-          const SizedBox(height: 22),
-          _SavePlanButton(isEditing: false, onTap: onCreate),
-        ],
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: onCreate,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Plan erstellen'),
+            ),
+          ],
+        ),
       ),
     );
   }
+}
+
+BoxDecoration _panelDecoration() {
+  return BoxDecoration(
+    borderRadius: BorderRadius.circular(30),
+    gradient: const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFF0D1B28), Color(0xFF071018), Color(0xFF050A0F)],
+    ),
+    border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.18)),
+    boxShadow: [
+      BoxShadow(
+        color: const Color(0xFF00E5FF).withValues(alpha: 0.08),
+        blurRadius: 28,
+        spreadRadius: 1,
+      ),
+    ],
+  );
 }

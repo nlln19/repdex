@@ -5,6 +5,7 @@ import 'package:hive_ce_flutter/hive_flutter.dart';
 
 import '../models/exercise.dart';
 import '../models/workout_plan.dart';
+import '../services/rest_sound_player.dart';
 
 class WorkoutStartScreen extends StatefulWidget {
   const WorkoutStartScreen({
@@ -27,6 +28,9 @@ class WorkoutStartScreen extends StatefulWidget {
   static const String activeWorkoutRestEndMillisKey =
       'active_workout_rest_end_millis';
   static const String completedWorkoutDateKey = 'completed_workout_date';
+  static const String completedWorkoutMuscleGroupsKey =
+      'completed_workout_muscle_groups';
+  static const String completedWorkoutDayNameKey = 'completed_workout_day_name';
 
   static String dateKey(DateTime date) {
     final year = date.year.toString().padLeft(4, '0');
@@ -486,6 +490,7 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
     final secondsLeft = millisLeft <= 0 ? 0 : ((millisLeft + 999) ~/ 1000);
 
     if (secondsLeft <= 0) {
+      RestSoundPlayer.playIfEnabled(_settingsBox);
       _advanceAfterRest(useSetState: useSetState);
       return;
     }
@@ -554,7 +559,25 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
     }
 
     await _settingsBox.put(WorkoutStartScreen.completedWorkoutDateKey, _todayKey);
+    await _settingsBox.put(
+      WorkoutStartScreen.completedWorkoutDayNameKey,
+      _completedDayDisplayName(),
+    );
+    await _settingsBox.put(
+      WorkoutStartScreen.completedWorkoutMuscleGroupsKey,
+      _completedMuscleGroups().toList()..sort(),
+    );
     await WorkoutStartScreen.clearActiveWorkout(_settingsBox);
+  }
+
+  String _completedDayDisplayName() {
+    final cleanName = widget.day.name.trim();
+
+    if (cleanName.isNotEmpty && cleanName.toLowerCase() != 'restday') {
+      return cleanName;
+    }
+
+    return WorkoutPlanDay.weekdayName(widget.day.weekday);
   }
 
   String _nextStepLabel() {
@@ -567,6 +590,22 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
     }
 
     return 'Workout abschliessen';
+  }
+
+  Set<String> _completedMuscleGroups() {
+    final muscleGroups = <String>{};
+
+    for (final exercise in widget.exercises) {
+      for (final muscleGroup in exercise.muscleGroups) {
+        final cleanedMuscleGroup = muscleGroup.trim();
+
+        if (cleanedMuscleGroup.isNotEmpty) {
+          muscleGroups.add(cleanedMuscleGroup);
+        }
+      }
+    }
+
+    return muscleGroups;
   }
 
   int _setCountFor(Exercise exercise) {
