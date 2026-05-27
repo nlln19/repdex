@@ -115,9 +115,33 @@ class PlanBuilderScreen extends StatelessWidget {
     );
   }
 
-  void _openEditor(BuildContext context, {WorkoutPlan? plan}) {
+  Future<void> _openEditor(BuildContext context, {WorkoutPlan? plan}) async {
+    _PlanTemplate? initialTemplate;
+
+    if (plan == null) {
+      initialTemplate = await showModalBottomSheet<_PlanTemplate>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => const _TemplateSelectionSheet(),
+      );
+
+      if (initialTemplate == null || !context.mounted) {
+        return;
+      }
+    }
+
+    if (!context.mounted) {
+      return;
+    }
+
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => _PlanEditorScreen(plan: plan)),
+      MaterialPageRoute(
+        builder: (_) => _PlanEditorScreen(
+          plan: plan,
+          initialTemplate: initialTemplate,
+        ),
+      ),
     );
   }
 
@@ -373,9 +397,10 @@ class _PlanCard extends StatelessWidget {
 }
 
 class _PlanEditorScreen extends StatefulWidget {
-  const _PlanEditorScreen({this.plan});
+  const _PlanEditorScreen({this.plan, this.initialTemplate});
 
   final WorkoutPlan? plan;
+  final _PlanTemplate? initialTemplate;
 
   @override
   State<_PlanEditorScreen> createState() => _PlanEditorScreenState();
@@ -419,10 +444,9 @@ class _PlanEditorScreenState extends State<_PlanEditorScreen> {
     final plan = widget.plan;
 
     if (plan == null) {
-      _planNameController.text = 'Push Pull Legs';
       _restMinutesController.text = _formatRestMinutesInput(180);
       _makeActiveAfterSave = true;
-      _applyTemplate(_PlanTemplate.pushPullLegs, notify: false);
+      _applyTemplate(widget.initialTemplate ?? _PlanTemplate.pushPullLegs, notify: false);
       return;
     }
 
@@ -468,12 +492,6 @@ class _PlanEditorScreenState extends State<_PlanEditorScreen> {
           widget.plan == null ? 'Plan erstellen' : 'Plan bearbeiten',
           style: const TextStyle(fontWeight: FontWeight.w900),
         ),
-        actions: [
-          TextButton(
-            onPressed: _savePlan,
-            child: const Text('Speichern'),
-          ),
-        ],
       ),
       body: SafeArea(
         top: false,
@@ -575,65 +593,6 @@ class _PlanEditorScreenState extends State<_PlanEditorScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        _EditorPanel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _SectionTitle(
-                title: 'Schnellstart',
-                subtitle: 'Template wählen und danach die Übungen ergänzen.',
-              ),
-              const SizedBox(height: 14),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  _TemplateChip(
-                    label: 'Push Pull Legs',
-                    onTap: () => _confirmAndApplyTemplate(_PlanTemplate.pushPullLegs),
-                  ),
-                  _TemplateChip(
-                    label: 'Upper Lower',
-                    onTap: () => _confirmAndApplyTemplate(_PlanTemplate.upperLower),
-                  ),
-                  _TemplateChip(
-                    label: 'Full Body',
-                    onTap: () => _confirmAndApplyTemplate(_PlanTemplate.fullBody),
-                  ),
-                  _TemplateChip(
-                    label: 'Torso / Limbs',
-                    onTap: () => _confirmAndApplyTemplate(_PlanTemplate.torsoLimbs),
-                  ),
-                  _TemplateChip(
-                    label: 'Bro Split',
-                    onTap: () => _confirmAndApplyTemplate(_PlanTemplate.broSplit),
-                  ),
-                  _TemplateChip(
-                    label: 'Arnold Split',
-                    onTap: () => _confirmAndApplyTemplate(_PlanTemplate.arnoldSplit),
-                  ),
-                  _TemplateChip(
-                    label: 'PHUL',
-                    onTap: () => _confirmAndApplyTemplate(_PlanTemplate.phul),
-                  ),
-                  _TemplateChip(
-                    label: '5x5 Strength',
-                    onTap: () => _confirmAndApplyTemplate(_PlanTemplate.strength5x5),
-                  ),
-                  _TemplateChip(
-                    label: 'Bodybuilding 4 Tage',
-                    onTap: () => _confirmAndApplyTemplate(_PlanTemplate.bodybuilding4Day),
-                  ),
-                  _TemplateChip(
-                    label: 'Leer starten',
-                    onTap: () => _confirmAndApplyTemplate(_PlanTemplate.empty),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
       ],
     );
   }
@@ -699,42 +658,14 @@ class _PlanEditorScreenState extends State<_PlanEditorScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: _SectionTitle(
-                      title: selectedDay.isRestDay ? 'Restday' : selectedDay.name,
-                      subtitle: selectedDay.isRestDay
-                          ? 'An diesem Tag gibt es keine Übungen.'
-                          : '${selectedDay.exerciseDrafts.length} Übungen geplant.',
-                    ),
-                  ),
-                  _RestDaySwitch(
-                    value: selectedDay.isRestDay,
-                    onChanged: (value) {
-                      setState(() {
-                        selectedDay.setRestDay(value);
-                        _rebalanceTrainingDayNames();
-                        _selectedDayIndex = _bestSelectedDayIndex(_selectedDayIndex);
-                      });
-                    },
-                  ),
-                ],
+              _SectionTitle(
+                title: selectedDay.isRestDay ? 'Restday' : selectedDay.name,
+                subtitle: selectedDay.isRestDay
+                    ? 'Restdays stellst du im Tab "Woche" ein.'
+                    : '${selectedDay.exerciseDrafts.length} Übungen geplant.',
               ),
               if (!selectedDay.isRestDay) ...[
                 const SizedBox(height: 14),
-                _NeonTextField(
-                  controller: selectedDay.nameController,
-                  label: 'Tagesname',
-                  hintText: 'z. B. Push',
-                  icon: Icons.label_rounded,
-                  onChanged: (value) {
-                    setState(() {
-                      _updateTrainingSequenceFromDay(_selectedDayIndex, value);
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
                 for (var index = 0; index < selectedDay.exerciseDrafts.length; index++) ...[
                   _ExerciseDraftCard(
                     index: index,
@@ -1187,6 +1118,7 @@ class _PlanEditorScreenState extends State<_PlanEditorScreen> {
 
   void _rebalanceTrainingDayNames() {
     final sequence = _trainingNameSequence();
+    final exerciseBank = _exerciseSnapshotsByTrainingName();
     var trainingIndex = 0;
 
     for (final day in _dayDrafts) {
@@ -1194,10 +1126,47 @@ class _PlanEditorScreenState extends State<_PlanEditorScreen> {
         continue;
       }
 
+      final oldName = _DayDraft._cleanTrainingName(day.name, day.weekday);
       final nextName = sequence[trainingIndex % sequence.length];
       day.setTrainingName(nextName);
+
+      if (oldName != nextName) {
+        final replacementExercises = exerciseBank[nextName];
+        if (replacementExercises != null && replacementExercises.isNotEmpty) {
+          day.replaceExercisesFromSnapshots(replacementExercises);
+        }
+      }
+
+      day.ensureExerciseDraft();
       trainingIndex++;
     }
+  }
+
+  Map<String, List<_ExerciseDraftSnapshot>> _exerciseSnapshotsByTrainingName() {
+    final bank = <String, List<_ExerciseDraftSnapshot>>{};
+
+    for (final day in _dayDrafts) {
+      final name = _DayDraft._cleanTrainingName(
+        day.isRestDay ? day.lastTrainingName : day.name,
+        day.weekday,
+      );
+
+      if (name == 'Training' || bank.containsKey(name)) {
+        continue;
+      }
+
+      final source = day.restorableExerciseDrafts;
+      final snapshots = source
+          .where((draft) => draft.hasContent)
+          .map(_ExerciseDraftSnapshot.fromDraft)
+          .toList(growable: false);
+
+      if (snapshots.isNotEmpty) {
+        bank[name] = snapshots;
+      }
+    }
+
+    return bank;
   }
 
   int _bestSelectedDayIndex(int preferredIndex) {
@@ -1914,11 +1883,17 @@ class _PlanEditorScreenState extends State<_PlanEditorScreen> {
 
       for (final draft in validExerciseDrafts) {
         final sets = draft.sets;
-        final reps = draft.reps;
+        final minReps = draft.minReps;
+        final maxReps = draft.maxReps;
         final weight = draft.weight;
 
-        if (sets == null || reps == null || weight == null) {
-          _showError('Prüfe Sätze, Wiederholungen und Gewicht bei "${draft.name.trim()}".');
+        if (sets == null || minReps == null || maxReps == null || weight == null) {
+          _showError('Prüfe Sätze, Rep-Range und Gewicht bei "${draft.name.trim()}".');
+          return;
+        }
+
+        if (minReps > maxReps) {
+          _showError('Die minimale Wiederholungszahl darf bei "${draft.name.trim()}" nicht höher als die maximale sein.');
           return;
         }
 
@@ -1932,8 +1907,10 @@ class _PlanEditorScreenState extends State<_PlanEditorScreen> {
           name: draft.name.trim(),
           muscleGroups: draft.muscleGroups.toList()..sort(),
           plannedSets: sets,
-          plannedReps: reps,
+          plannedReps: maxReps,
           plannedWeight: weight,
+          targetMinReps: minReps,
+          targetMaxReps: maxReps,
         );
 
         await _exerciseBox.put(exercise.id, exercise);
@@ -2121,6 +2098,16 @@ class _DayDraft {
 
   String get name => nameController.text;
 
+  String get lastTrainingName => _lastTrainingName;
+
+  List<_ExerciseDraft> get restorableExerciseDrafts {
+    if (isRestDay) {
+      return _storedExerciseDrafts ?? const <_ExerciseDraft>[];
+    }
+
+    return exerciseDrafts;
+  }
+
   void setTrainingName(String value) {
     final cleanName = _cleanTrainingName(value, weekday);
     nameController.text = cleanName;
@@ -2162,6 +2149,25 @@ class _DayDraft {
     }
 
     if (exerciseDrafts.isEmpty) {
+      exerciseDrafts.add(_ExerciseDraft.createEmpty());
+    }
+  }
+
+  void replaceExercisesFromSnapshots(List<_ExerciseDraftSnapshot> snapshots) {
+    for (final draft in exerciseDrafts) {
+      draft.dispose();
+    }
+
+    exerciseDrafts
+      ..clear()
+      ..addAll(snapshots.map((snapshot) => snapshot.toDraft()));
+
+    _storedExerciseDrafts = null;
+    ensureExerciseDraft();
+  }
+
+  void ensureExerciseDraft() {
+    if (!isRestDay && exerciseDrafts.isEmpty) {
       exerciseDrafts.add(_ExerciseDraft.createEmpty());
     }
   }
@@ -2209,11 +2215,13 @@ class _ExerciseDraft {
     required String name,
     required Set<String> muscleGroups,
     required int plannedSets,
-    required int plannedReps,
+    required int targetMinReps,
+    required int targetMaxReps,
     required double plannedWeight,
   })  : nameController = TextEditingController(text: name),
         setsController = TextEditingController(text: plannedSets.toString()),
-        repsController = TextEditingController(text: plannedReps.toString()),
+        minRepsController = TextEditingController(text: targetMinReps.toString()),
+        maxRepsController = TextEditingController(text: targetMaxReps.toString()),
         weightController = TextEditingController(text: _formatWeightInput(plannedWeight)),
         muscleGroups = {...muscleGroups};
 
@@ -2223,7 +2231,8 @@ class _ExerciseDraft {
       name: '',
       muscleGroups: {},
       plannedSets: 3,
-      plannedReps: 10,
+      targetMinReps: 8,
+      targetMaxReps: 12,
       plannedWeight: 0,
     );
   }
@@ -2233,14 +2242,20 @@ class _ExerciseDraft {
     required Set<String> muscleGroups,
     required int sets,
     required int reps,
+    int? minReps,
+    int? maxReps,
     double weight = 0,
   }) {
+    final targetMax = maxReps ?? reps;
+    final targetMin = minReps ?? (targetMax <= 5 ? targetMax : targetMax - 2);
+
     return _ExerciseDraft(
       id: 'exercise_${DateTime.now().microsecondsSinceEpoch}_${UniqueKey()}',
       name: name,
       muscleGroups: muscleGroups,
       plannedSets: sets,
-      plannedReps: reps,
+      targetMinReps: targetMin < 1 ? 1 : targetMin,
+      targetMaxReps: targetMax < 1 ? 1 : targetMax,
       plannedWeight: weight,
     );
   }
@@ -2251,7 +2266,8 @@ class _ExerciseDraft {
       name: exercise.name,
       muscleGroups: exercise.muscleGroups.toSet(),
       plannedSets: exercise.plannedSets,
-      plannedReps: exercise.plannedReps,
+      targetMinReps: exercise.targetMinReps,
+      targetMaxReps: exercise.targetMaxReps,
       plannedWeight: exercise.plannedWeight,
     );
   }
@@ -2259,20 +2275,45 @@ class _ExerciseDraft {
   final String id;
   final TextEditingController nameController;
   final TextEditingController setsController;
-  final TextEditingController repsController;
+  final TextEditingController minRepsController;
+  final TextEditingController maxRepsController;
   final TextEditingController weightController;
   final Set<String> muscleGroups;
 
   String get name => nameController.text;
+
+  bool get hasContent {
+    return name.trim().isNotEmpty || muscleGroups.isNotEmpty;
+  }
 
   int? get sets {
     final value = int.tryParse(setsController.text.trim());
     return value == null || value < 1 ? null : value;
   }
 
-  int? get reps {
-    final value = int.tryParse(repsController.text.trim());
+  int? get minReps {
+    final value = int.tryParse(minRepsController.text.trim());
     return value == null || value < 1 ? null : value;
+  }
+
+  int? get maxReps {
+    final value = int.tryParse(maxRepsController.text.trim());
+    return value == null || value < 1 ? null : value;
+  }
+
+  String get repRangeSummary {
+    final min = minReps;
+    final max = maxReps;
+
+    if (min == null || max == null) {
+      return 'Rep-Range prüfen';
+    }
+
+    if (min == max) {
+      return '$max Wdh.';
+    }
+
+    return '$min-$max Wdh.';
   }
 
   double? get weight {
@@ -2297,7 +2338,8 @@ class _ExerciseDraft {
   void dispose() {
     nameController.dispose();
     setsController.dispose();
-    repsController.dispose();
+    minRepsController.dispose();
+    maxRepsController.dispose();
     weightController.dispose();
   }
 
@@ -2312,6 +2354,47 @@ class _ExerciseDraft {
     }
 
     return weight.toStringAsFixed(1);
+  }
+}
+
+class _ExerciseDraftSnapshot {
+  const _ExerciseDraftSnapshot({
+    required this.name,
+    required this.muscleGroups,
+    required this.sets,
+    required this.minReps,
+    required this.maxReps,
+    required this.weight,
+  });
+
+  factory _ExerciseDraftSnapshot.fromDraft(_ExerciseDraft draft) {
+    return _ExerciseDraftSnapshot(
+      name: draft.name.trim(),
+      muscleGroups: {...draft.muscleGroups},
+      sets: draft.sets ?? 3,
+      minReps: draft.minReps ?? 8,
+      maxReps: draft.maxReps ?? 12,
+      weight: draft.weight ?? 0,
+    );
+  }
+
+  final String name;
+  final Set<String> muscleGroups;
+  final int sets;
+  final int minReps;
+  final int maxReps;
+  final double weight;
+
+  _ExerciseDraft toDraft() {
+    return _ExerciseDraft.createPreset(
+      name: name,
+      muscleGroups: {...muscleGroups},
+      sets: sets,
+      reps: maxReps,
+      minReps: minReps,
+      maxReps: maxReps,
+      weight: weight,
+    );
   }
 }
 
@@ -2572,28 +2655,79 @@ class _DaySelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 54,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: days.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final day = days[index];
-          final selected = index == selectedIndex;
-
-          return ChoiceChip(
-            label: Text(WorkoutPlanDay.shortWeekdayName(day.weekday)),
-            selected: selected,
-            selectedColor: const Color(0xFF00E5FF).withValues(alpha: 0.22),
-            onSelected: (_) => onSelected(index),
-            avatar: Icon(
-              day.isRestDay ? Icons.hotel_rounded : Icons.fitness_center_rounded,
-              size: 16,
-              color: selected ? const Color(0xFF00E5FF) : const Color(0xFF8A93A3),
+    return Row(
+      children: [
+        for (var index = 0; index < days.length; index++) ...[
+          Expanded(
+            child: _DaySelectorButton(
+              day: days[index],
+              selected: index == selectedIndex,
+              onTap: () => onSelected(index),
             ),
-          );
-        },
+          ),
+          if (index != days.length - 1) const SizedBox(width: 5),
+        ],
+      ],
+    );
+  }
+}
+
+class _DaySelectorButton extends StatelessWidget {
+  const _DaySelectorButton({
+    required this.day,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final _DayDraft day;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = selected ? const Color(0xFF00E5FF) : const Color(0xFF8A93A3);
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Ink(
+          height: 54,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            color: selected
+                ? const Color(0xFF00E5FF).withValues(alpha: 0.13)
+                : const Color(0xFF08111A),
+            border: Border.all(
+              color: selected
+                  ? const Color(0xFF00E5FF).withValues(alpha: 0.38)
+                  : const Color(0xFF00E5FF).withValues(alpha: 0.10),
+            ),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                day.isRestDay ? Icons.hotel_rounded : Icons.fitness_center_rounded,
+                size: 15,
+                color: accent,
+              ),
+              const SizedBox(height: 3),
+              Text(
+                WorkoutPlanDay.shortWeekdayName(day.weekday),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: selected ? const Color(0xFFEAF2F4) : const Color(0xFF8A93A3),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -2683,9 +2817,9 @@ class _ExerciseDraftCard extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: _MetricTextField(
-                  controller: draft.repsController,
-                  label: 'Wdh.',
-                  hintText: '10',
+                  controller: draft.minRepsController,
+                  label: 'Min Wdh.',
+                  hintText: '8',
                   onChanged: (_) {
                     onChanged();
                   },
@@ -2694,13 +2828,35 @@ class _ExerciseDraftCard extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: _MetricTextField(
+                  controller: draft.maxRepsController,
+                  label: 'Max Wdh.',
+                  hintText: '12',
+                  onChanged: (_) {
+                    onChanged();
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _MetricTextField(
                   controller: draft.weightController,
-                  label: 'kg',
+                  label: 'Gewicht kg',
                   hintText: '0',
                   decimal: true,
                   onChanged: (_) {
                     onChanged();
                   },
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _ReadOnlyMetricBox(
+                  label: 'Ziel',
+                  value: draft.repRangeSummary,
                 ),
               ),
             ],
@@ -2747,6 +2903,52 @@ class _ExerciseDraftCard extends StatelessWidget {
                   ],
                 ),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+class _ReadOnlyMetricBox extends StatelessWidget {
+  const _ReadOnlyMetricBox({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        color: const Color(0xFF08111A),
+        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.14)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF8A93A3),
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Color(0xFFEAF2F4),
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
             ),
           ),
         ],
@@ -2990,6 +3192,350 @@ class _ActiveSwitchTile extends StatelessWidget {
       ),
     );
   }
+}
+
+const List<_TemplateMenuEntry> _planTemplateEntries = [
+  _TemplateMenuEntry(
+    template: _PlanTemplate.pushPullLegs,
+    label: 'Push Pull Legs',
+    description: '6 Tage möglich · Push, Pull, Legs',
+  ),
+  _TemplateMenuEntry(
+    template: _PlanTemplate.upperLower,
+    label: 'Upper Lower',
+    description: '4 Tage · Oberkörper und Unterkörper',
+  ),
+  _TemplateMenuEntry(
+    template: _PlanTemplate.fullBody,
+    label: 'Full Body',
+    description: '3 Tage · Ganzkörper',
+  ),
+  _TemplateMenuEntry(
+    template: _PlanTemplate.torsoLimbs,
+    label: 'Torso / Limbs',
+    description: '4 Tage · Torso und Arme/Beine',
+  ),
+  _TemplateMenuEntry(
+    template: _PlanTemplate.broSplit,
+    label: 'Bro Split',
+    description: '5 Tage · einzelne Muskelgruppen',
+  ),
+  _TemplateMenuEntry(
+    template: _PlanTemplate.arnoldSplit,
+    label: 'Arnold Split',
+    description: '6 Tage möglich · klassischer Split',
+  ),
+  _TemplateMenuEntry(
+    template: _PlanTemplate.phul,
+    label: 'PHUL',
+    description: 'Power + Hypertrophy',
+  ),
+  _TemplateMenuEntry(
+    template: _PlanTemplate.strength5x5,
+    label: '5x5 Strength',
+    description: 'Kraftfokus · A/B Tage',
+  ),
+  _TemplateMenuEntry(
+    template: _PlanTemplate.bodybuilding4Day,
+    label: 'Bodybuilding 4 Tage',
+    description: 'Brust, Rücken, Beine, Schultern',
+  ),
+  _TemplateMenuEntry(
+    template: _PlanTemplate.empty,
+    label: 'Leer starten',
+    description: 'Alles selbst festlegen',
+  ),
+];
+
+class _TemplateSelectionSheet extends StatelessWidget {
+  const _TemplateSelectionSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Container(
+        margin: const EdgeInsets.all(14),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          color: const Color(0xFF09131B),
+          border: Border.all(
+            color: const Color(0xFF00E5FF).withValues(alpha: 0.18),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.35),
+              blurRadius: 30,
+              offset: const Offset(0, 18),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                _IconBadge(icon: Icons.auto_awesome_rounded),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Template wählen',
+                        style: TextStyle(
+                          color: Color(0xFFEAF2F4),
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.4,
+                        ),
+                      ),
+                      SizedBox(height: 3),
+                      Text(
+                        'Damit startest du direkt mit einer passenden Wochenstruktur.',
+                        style: TextStyle(
+                          color: Color(0xFF8A93A3),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close_rounded),
+                  color: const Color(0xFF8A93A3),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * 0.68,
+              ),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: _planTemplateEntries.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 9),
+                itemBuilder: (context, index) {
+                  final entry = _planTemplateEntries[index];
+                  return _TemplateSelectionTile(entry: entry);
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TemplateSelectionTile extends StatelessWidget {
+  const _TemplateSelectionTile({required this.entry});
+
+  final _TemplateMenuEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: () => Navigator.of(context).pop(entry.template),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            color: const Color(0xFF050A0F),
+            border: Border.all(
+              color: const Color(0xFF00E5FF).withValues(alpha: 0.13),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF00E5FF).withValues(alpha: 0.09),
+                  border: Border.all(
+                    color: const Color(0xFF00E5FF).withValues(alpha: 0.18),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.fitness_center_rounded,
+                  color: Color(0xFF7DD3FC),
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      entry.label,
+                      style: const TextStyle(
+                        color: Color(0xFFEAF2F4),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      entry.description,
+                      style: const TextStyle(
+                        color: Color(0xFF8A93A3),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: Color(0xFF64748B),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TemplatePickerButton extends StatelessWidget {
+  const _TemplatePickerButton({required this.onSelected});
+
+  final ValueChanged<_PlanTemplate> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(15),
+            color: const Color(0xFF00E5FF).withValues(alpha: 0.10),
+            border: Border.all(
+              color: const Color(0xFF00E5FF).withValues(alpha: 0.22),
+            ),
+          ),
+          child: const Icon(
+            Icons.auto_awesome_rounded,
+            color: Color(0xFF00E5FF),
+            size: 22,
+          ),
+        ),
+        const SizedBox(width: 12),
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Template',
+                style: TextStyle(
+                  color: Color(0xFFEAF2F4),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              SizedBox(height: 3),
+              Text(
+                'Optional auswählen',
+                style: TextStyle(
+                  color: Color(0xFF8A93A3),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuButton<_PlanTemplate>(
+          tooltip: 'Template auswählen',
+          color: const Color(0xFF09131B),
+          onSelected: onSelected,
+          itemBuilder: (context) {
+            return [
+              for (final entry in _planTemplateEntries)
+                PopupMenuItem<_PlanTemplate>(
+                  value: entry.template,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        entry.label,
+                        style: const TextStyle(
+                          color: Color(0xFFEAF2F4),
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        entry.description,
+                        style: const TextStyle(
+                          color: Color(0xFF8A93A3),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ];
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(999),
+              color: const Color(0xFF050A0F),
+              border: Border.all(
+                color: const Color(0xFF00E5FF).withValues(alpha: 0.22),
+              ),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Auswählen',
+                  style: TextStyle(
+                    color: Color(0xFF7DD3FC),
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                SizedBox(width: 6),
+                Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: Color(0xFF7DD3FC),
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TemplateMenuEntry {
+  const _TemplateMenuEntry({
+    required this.template,
+    required this.label,
+    required this.description,
+  });
+
+  final _PlanTemplate template;
+  final String label;
+  final String description;
 }
 
 class _TemplateChip extends StatelessWidget {

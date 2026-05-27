@@ -16,20 +16,23 @@ class ExerciseAdapter extends TypeAdapter<Exercise> {
     final fields = <int, dynamic>{
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
+    final plannedReps = (fields[4] as num?)?.toInt() ?? 10;
     return Exercise(
       id: fields[0] as String,
       name: fields[1] as String,
       muscleGroups: (fields[2] as List?)?.cast<String>(),
       plannedSets: (fields[3] as num?)?.toInt() ?? 3,
-      plannedReps: (fields[4] as num?)?.toInt() ?? 10,
+      plannedReps: plannedReps,
       plannedWeight: (fields[5] as num?)?.toDouble() ?? 0,
+      targetMinReps: (fields[6] as num?)?.toInt() ?? plannedReps,
+      targetMaxReps: (fields[7] as num?)?.toInt() ?? plannedReps,
     );
   }
 
   @override
   void write(BinaryWriter writer, Exercise obj) {
     writer
-      ..writeByte(6)
+      ..writeByte(8)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -41,7 +44,11 @@ class ExerciseAdapter extends TypeAdapter<Exercise> {
       ..writeByte(4)
       ..write(obj.plannedReps)
       ..writeByte(5)
-      ..write(obj.plannedWeight);
+      ..write(obj.plannedWeight)
+      ..writeByte(6)
+      ..write(obj.targetMinReps)
+      ..writeByte(7)
+      ..write(obj.targetMaxReps);
   }
 
   @override

@@ -21,15 +21,13 @@ class WorkoutStartScreen extends StatefulWidget {
 
   static const String activeWorkoutDateKey = 'active_workout_date';
   static const String activeWorkoutPlanIdKey = 'active_workout_plan_id';
-  static const String activeWorkoutExerciseIndexKey =
-      'active_workout_exercise_index';
+  static const String activeWorkoutExerciseIndexKey = 'active_workout_exercise_index';
   static const String activeWorkoutCurrentSetKey = 'active_workout_current_set';
   static const String activeWorkoutPhaseKey = 'active_workout_phase';
-  static const String activeWorkoutRestEndMillisKey =
-      'active_workout_rest_end_millis';
+  static const String activeWorkoutRestEndMillisKey = 'active_workout_rest_end_millis';
+  static const String activeWorkoutLoggedRepsKey = 'active_workout_logged_reps';
   static const String completedWorkoutDateKey = 'completed_workout_date';
-  static const String completedWorkoutMuscleGroupsKey =
-      'completed_workout_muscle_groups';
+  static const String completedWorkoutMuscleGroupsKey = 'completed_workout_muscle_groups';
   static const String completedWorkoutDayNameKey = 'completed_workout_day_name';
 
   static String dateKey(DateTime date) {
@@ -54,6 +52,7 @@ class WorkoutStartScreen extends StatefulWidget {
     await settingsBox.delete(activeWorkoutCurrentSetKey);
     await settingsBox.delete(activeWorkoutPhaseKey);
     await settingsBox.delete(activeWorkoutRestEndMillisKey);
+    await settingsBox.delete(activeWorkoutLoggedRepsKey);
   }
 
   @override
@@ -74,6 +73,7 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
   int? _restEndMillis;
   bool _isResting = false;
   bool _isFinished = false;
+  final Map<String, int> _loggedReps = {};
 
   Exercise get _currentExercise => widget.exercises[_safeExerciseIndex];
 
@@ -103,6 +103,8 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
 
   bool get _isLastSetOfWorkout => _isLastExercise && _isLastSetOfExercise;
 
+  int? get _lastLoggedReps => _loggedReps[_setKey(_currentExercise, _currentSet)];
+
   int get _totalSets {
     return widget.exercises.fold<int>(
       0,
@@ -131,6 +133,19 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
     }
 
     return _completedSets / _totalSets;
+  }
+
+  List<_ProgressionSuggestion> get _progressionSuggestions {
+    final suggestions = <_ProgressionSuggestion>[];
+
+    for (final exercise in widget.exercises) {
+      final reps = _loggedRepsFor(exercise);
+      if (exercise.shouldIncreaseWeight(reps)) {
+        suggestions.add(_ProgressionSuggestion(exercise: exercise));
+      }
+    }
+
+    return suggestions;
   }
 
   @override
@@ -245,8 +260,8 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: _MinimalMetric(
-                label: 'Wdh.',
-                value: '${exercise.plannedReps}',
+                label: 'Ziel Wdh.',
+                value: exercise.repRangeLabel,
               ),
             ),
             const SizedBox(width: 10),
@@ -258,11 +273,24 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
             ),
           ],
         ),
+        const SizedBox(height: 18),
+        const Text(
+          'Nach dem Satz frag ich dich nach den geschafften Wiederholungen.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Color(0xFF8A93A3),
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ],
     );
   }
 
   Widget _buildRestContent() {
+    final lastLoggedReps = _lastLoggedReps;
+    final showProgressionHint = _isLastSetOfExercise && _shouldIncreaseWeight(_currentExercise);
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -285,6 +313,14 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
             letterSpacing: -3,
           ),
         ),
+        if (lastLoggedReps != null) ...[
+          const SizedBox(height: 10),
+          _RepsBadge(label: 'Letzter Satz: $lastLoggedReps Wdh.'),
+        ],
+        if (showProgressionHint) ...[
+          const SizedBox(height: 12),
+          _ProgressionHint(text: _increaseMessage(_currentExercise)),
+        ],
         const SizedBox(height: 16),
         Text(
           'Danach: ${_nextStepLabel()}',
@@ -300,56 +336,64 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
   }
 
   Widget _buildFinishedView() {
+    final suggestions = _progressionSuggestions;
+
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFF3DDC97).withValues(alpha: 0.16),
-                border: Border.all(
-                  color: const Color(0xFF3DDC97).withValues(alpha: 0.42),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF3DDC97).withValues(alpha: 0.16),
+                  border: Border.all(
+                    color: const Color(0xFF3DDC97).withValues(alpha: 0.42),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.check_rounded,
+                  color: Color(0xFF3DDC97),
+                  size: 42,
                 ),
               ),
-              child: const Icon(
-                Icons.check_rounded,
-                color: Color(0xFF3DDC97),
-                size: 42,
+              const SizedBox(height: 20),
+              const Text(
+                'Workout abgeschlossen',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFFEAF2F4),
+                  fontSize: 26,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.8,
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Workout abgeschlossen',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Color(0xFFEAF2F4),
-                fontSize: 26,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.8,
+              const SizedBox(height: 8),
+              Text(
+                '$_totalSets Sätze erledigt',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFF8A93A3),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '$_totalSets Sätze erledigt',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Color(0xFF8A93A3),
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
+              if (suggestions.isNotEmpty) ...[
+                const SizedBox(height: 22),
+                _ProgressionSummary(suggestions: suggestions),
+              ],
+              const SizedBox(height: 28),
+              _BottomActionButton(
+                label: 'Zurück',
+                icon: Icons.home_rounded,
+                onTap: () => Navigator.of(context).pop(),
               ),
-            ),
-            const SizedBox(height: 28),
-            _BottomActionButton(
-              label: 'Zurück',
-              icon: Icons.home_rounded,
-              onTap: () => Navigator.of(context).pop(),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -365,9 +409,7 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
 
   bool _restoreWorkoutState() {
     final activeDate = _settingsBox.get(WorkoutStartScreen.activeWorkoutDateKey);
-    final activePlanId = _settingsBox.get(
-      WorkoutStartScreen.activeWorkoutPlanIdKey,
-    );
+    final activePlanId = _settingsBox.get(WorkoutStartScreen.activeWorkoutPlanIdKey);
 
     if (activeDate != _todayKey || activePlanId != widget.plan.id) {
       return false;
@@ -388,11 +430,10 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
     );
 
     _exerciseIndex = restoredExerciseIndex.clamp(0, widget.exercises.length - 1).toInt();
-    _currentSet = restoredCurrentSet
-        .clamp(1, _setCountFor(_currentExercise))
-        .toInt();
+    _currentSet = restoredCurrentSet.clamp(1, _setCountFor(_currentExercise)).toInt();
     _isResting = restoredPhase == _phaseRest;
     _restEndMillis = restoredRestEndMillis <= 0 ? null : restoredRestEndMillis;
+    _restoreLoggedReps();
 
     return true;
   }
@@ -414,48 +455,187 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
   Future<void> _persistSetState() async {
     await _settingsBox.put(WorkoutStartScreen.activeWorkoutDateKey, _todayKey);
     await _settingsBox.put(WorkoutStartScreen.activeWorkoutPlanIdKey, widget.plan.id);
-    await _settingsBox.put(
-      WorkoutStartScreen.activeWorkoutExerciseIndexKey,
-      _safeExerciseIndex,
-    );
+    await _settingsBox.put(WorkoutStartScreen.activeWorkoutExerciseIndexKey, _safeExerciseIndex);
     await _settingsBox.put(WorkoutStartScreen.activeWorkoutCurrentSetKey, _currentSet);
     await _settingsBox.put(WorkoutStartScreen.activeWorkoutPhaseKey, _phaseSet);
     await _settingsBox.delete(WorkoutStartScreen.activeWorkoutRestEndMillisKey);
+    await _persistLoggedReps();
   }
 
   Future<void> _persistRestState() async {
     await _settingsBox.put(WorkoutStartScreen.activeWorkoutDateKey, _todayKey);
     await _settingsBox.put(WorkoutStartScreen.activeWorkoutPlanIdKey, widget.plan.id);
-    await _settingsBox.put(
-      WorkoutStartScreen.activeWorkoutExerciseIndexKey,
-      _safeExerciseIndex,
-    );
+    await _settingsBox.put(WorkoutStartScreen.activeWorkoutExerciseIndexKey, _safeExerciseIndex);
     await _settingsBox.put(WorkoutStartScreen.activeWorkoutCurrentSetKey, _currentSet);
     await _settingsBox.put(WorkoutStartScreen.activeWorkoutPhaseKey, _phaseRest);
     await _settingsBox.put(
       WorkoutStartScreen.activeWorkoutRestEndMillisKey,
       _restEndMillis ?? DateTime.now().millisecondsSinceEpoch,
     );
+    await _persistLoggedReps();
   }
 
-  void _completeSet() {
+  Future<void> _persistLoggedReps() async {
+    final entries = _loggedReps.entries.map((entry) => '${entry.key}|${entry.value}').toList();
+    await _settingsBox.put(WorkoutStartScreen.activeWorkoutLoggedRepsKey, entries);
+  }
+
+  void _restoreLoggedReps() {
+    final rawEntries = _settingsBox.get(WorkoutStartScreen.activeWorkoutLoggedRepsKey);
+    _loggedReps.clear();
+
+    if (rawEntries is! List) {
+      return;
+    }
+
+    for (final rawEntry in rawEntries) {
+      final entry = rawEntry.toString();
+      final splitIndex = entry.lastIndexOf('|');
+
+      if (splitIndex <= 0 || splitIndex >= entry.length - 1) {
+        continue;
+      }
+
+      final key = entry.substring(0, splitIndex);
+      final reps = int.tryParse(entry.substring(splitIndex + 1));
+
+      if (reps != null && reps >= 0) {
+        _loggedReps[key] = reps;
+      }
+    }
+  }
+
+  Future<void> _completeSet() async {
     if (_isResting || _isFinished) {
       return;
     }
 
+    final completedReps = await _askCompletedReps();
+
+    if (!mounted || completedReps == null) {
+      return;
+    }
+
+    setState(() {
+      _loggedReps[_setKey(_currentExercise, _currentSet)] = completedReps;
+    });
+
+    await _persistLoggedReps();
+
     if (_isLastSetOfWorkout) {
-      _finishWorkout();
+      await _finishWorkout();
       return;
     }
 
     _startRest();
   }
 
+  Future<int?> _askCompletedReps() async {
+    final controller = TextEditingController(text: _currentExercise.targetMaxReps.toString());
+
+    final result = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF09131B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            18,
+            18,
+            18,
+            MediaQuery.of(context).viewInsets.bottom + 18,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Wie viele Wiederholungen geschafft?',
+                style: TextStyle(
+                  color: Color(0xFFEAF2F4),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${_currentExercise.name} · Satz $_currentSet · Ziel ${_currentExercise.repRangeLabel}',
+                style: const TextStyle(
+                  color: Color(0xFF8A93A3),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(
+                  color: Color(0xFFEAF2F4),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                ),
+                decoration: InputDecoration(
+                  labelText: 'Wiederholungen',
+                  labelStyle: const TextStyle(color: Color(0xFF8A93A3)),
+                  filled: true,
+                  fillColor: const Color(0xFF050A0F),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: const BorderSide(color: Color(0xFF1F3345)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: const BorderSide(color: Color(0xFF1F3345)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: const BorderSide(color: Color(0xFF00E5FF), width: 1.4),
+                  ),
+                ),
+                onSubmitted: (_) => _submitCompletedReps(context, controller),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: FilledButton(
+                  onPressed: () => _submitCompletedReps(context, controller),
+                  child: const Text('Pause starten'),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    // Do not dispose this local controller here. On Flutter Web, the bottom
+    // sheet can still rebuild for a frame while closing, and disposing the
+    // controller immediately can trigger: "TextEditingController was used after
+    // being disposed." The controller is short-lived and will be collected
+    // after the sheet is closed.
+    return result;
+  }
+
+  void _submitCompletedReps(BuildContext context, TextEditingController controller) {
+    final reps = int.tryParse(controller.text.trim());
+
+    if (reps == null || reps < 0) {
+      return;
+    }
+
+    Navigator.of(context).pop(reps);
+  }
+
   void _startRest() {
     _restTimer?.cancel();
 
-    final restEndMillis =
-        DateTime.now().millisecondsSinceEpoch + (_safeRestSeconds * 1000);
+    final restEndMillis = DateTime.now().millisecondsSinceEpoch + (_safeRestSeconds * 1000);
 
     setState(() {
       _isResting = true;
@@ -611,6 +791,35 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
   int _setCountFor(Exercise exercise) {
     return exercise.plannedSets < 1 ? 1 : exercise.plannedSets;
   }
+
+  String _setKey(Exercise exercise, int setNumber) {
+    return '${exercise.id}::$setNumber';
+  }
+
+  List<int> _loggedRepsFor(Exercise exercise) {
+    final reps = <int>[];
+
+    for (var setNumber = 1; setNumber <= _setCountFor(exercise); setNumber++) {
+      final value = _loggedReps[_setKey(exercise, setNumber)];
+      if (value != null) {
+        reps.add(value);
+      }
+    }
+
+    return reps;
+  }
+
+  bool _shouldIncreaseWeight(Exercise exercise) {
+    return exercise.shouldIncreaseWeight(_loggedRepsFor(exercise));
+  }
+
+  String _increaseMessage(Exercise exercise) {
+    if (exercise.plannedWeight <= 0) {
+      return 'Alle Sätze im oberen Zielbereich. Nächstes Mal schwerere Variante wählen.';
+    }
+
+    return 'Alle Sätze im oberen Zielbereich. Nächstes Mal Gewicht leicht erhöhen.';
+  }
 }
 
 class _ProgressBar extends StatelessWidget {
@@ -675,6 +884,132 @@ class _MinimalMetric extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _RepsBadge extends StatelessWidget {
+  const _RepsBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        color: const Color(0xFF00E5FF).withValues(alpha: 0.10),
+        border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.22)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Color(0xFF7DD3FC),
+          fontSize: 12,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+class _ProgressionHint extends StatelessWidget {
+  const _ProgressionHint({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        color: const Color(0xFF3DDC97).withValues(alpha: 0.10),
+        border: Border.all(color: const Color(0xFF3DDC97).withValues(alpha: 0.24)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.trending_up_rounded, color: Color(0xFF3DDC97), size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: Color(0xFFEAF2F4),
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProgressionSummary extends StatelessWidget {
+  const _ProgressionSummary({required this.suggestions});
+
+  final List<_ProgressionSuggestion> suggestions;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        color: const Color(0xFF08111A),
+        border: Border.all(color: const Color(0xFF3DDC97).withValues(alpha: 0.24)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.trending_up_rounded, color: Color(0xFF3DDC97), size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Progression fürs nächste Mal',
+                style: TextStyle(
+                  color: Color(0xFFEAF2F4),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          for (final suggestion in suggestions) ...[
+            Text(
+              '• ${suggestion.exercise.name}: ${suggestion.message}',
+              style: const TextStyle(
+                color: Color(0xFFB8C2CC),
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 4),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ProgressionSuggestion {
+  const _ProgressionSuggestion({required this.exercise});
+
+  final Exercise exercise;
+
+  String get message {
+    if (exercise.plannedWeight <= 0) {
+      return 'schwerere Variante wählen';
+    }
+
+    return 'Gewicht leicht erhöhen';
   }
 }
 

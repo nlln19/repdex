@@ -22,6 +22,12 @@ class Exercise extends HiveObject {
   @HiveField(5)
   final double plannedWeight;
 
+  @HiveField(6)
+  final int targetMinReps;
+
+  @HiveField(7)
+  final int targetMaxReps;
+
   Exercise({
     required this.id,
     required this.name,
@@ -30,12 +36,24 @@ class Exercise extends HiveObject {
     int plannedSets = 3,
     int plannedReps = 10,
     double plannedWeight = 0,
+    int? targetMinReps,
+    int? targetMaxReps,
   })  : muscleGroups = _normalizeMuscleGroups(
           muscleGroups ?? (muscleGroup == null ? const [] : [muscleGroup]),
         ),
         plannedSets = plannedSets < 1 ? 1 : plannedSets,
         plannedReps = plannedReps < 1 ? 1 : plannedReps,
-        plannedWeight = plannedWeight < 0 ? 0 : plannedWeight;
+        plannedWeight = plannedWeight < 0 ? 0 : plannedWeight,
+        targetMinReps = _normalizeMinReps(
+          targetMinReps,
+          targetMaxReps,
+          plannedReps,
+        ),
+        targetMaxReps = _normalizeMaxReps(
+          targetMinReps,
+          targetMaxReps,
+          plannedReps,
+        );
 
   String get muscleGroup => muscleGroups.isEmpty ? '' : muscleGroups.first;
 
@@ -53,7 +71,45 @@ class Exercise extends HiveObject {
     return '${plannedWeight.toStringAsFixed(1)} kg';
   }
 
-  String get plannedVolumeLabel => '$plannedSets x $plannedReps · $plannedWeightLabel';
+  String get repRangeLabel {
+    if (targetMinReps == targetMaxReps) {
+      return '$targetMaxReps';
+    }
+
+    return '$targetMinReps-$targetMaxReps';
+  }
+
+  String get plannedVolumeLabel => '$plannedSets x $repRangeLabel · $plannedWeightLabel';
+
+  bool shouldIncreaseWeight(List<int> completedReps) {
+    if (completedReps.length < plannedSets) {
+      return false;
+    }
+
+    return completedReps.take(plannedSets).every((reps) => reps >= targetMaxReps);
+  }
+
+  static int _normalizeMinReps(
+    int? targetMinReps,
+    int? targetMaxReps,
+    int plannedReps,
+  ) {
+    final fallback = plannedReps < 1 ? 1 : plannedReps;
+    final minReps = targetMinReps == null || targetMinReps < 1 ? fallback : targetMinReps;
+    final maxReps = targetMaxReps == null || targetMaxReps < 1 ? fallback : targetMaxReps;
+    return minReps > maxReps ? maxReps : minReps;
+  }
+
+  static int _normalizeMaxReps(
+    int? targetMinReps,
+    int? targetMaxReps,
+    int plannedReps,
+  ) {
+    final fallback = plannedReps < 1 ? 1 : plannedReps;
+    final minReps = targetMinReps == null || targetMinReps < 1 ? fallback : targetMinReps;
+    final maxReps = targetMaxReps == null || targetMaxReps < 1 ? fallback : targetMaxReps;
+    return maxReps < minReps ? minReps : maxReps;
+  }
 
   static List<String> _normalizeMuscleGroups(List<String> groups) {
     final cleanedGroups = <String>[];
