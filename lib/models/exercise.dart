@@ -55,6 +55,30 @@ class Exercise extends HiveObject {
           plannedReps,
         );
 
+
+
+  Exercise copyWith({
+    String? id,
+    String? name,
+    List<String>? muscleGroups,
+    int? plannedSets,
+    int? plannedReps,
+    double? plannedWeight,
+    int? targetMinReps,
+    int? targetMaxReps,
+  }) {
+    return Exercise(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      muscleGroups: muscleGroups ?? this.muscleGroups,
+      plannedSets: plannedSets ?? this.plannedSets,
+      plannedReps: plannedReps ?? this.plannedReps,
+      plannedWeight: plannedWeight ?? this.plannedWeight,
+      targetMinReps: targetMinReps ?? this.targetMinReps,
+      targetMaxReps: targetMaxReps ?? this.targetMaxReps,
+    );
+  }
+
   String get muscleGroup => muscleGroups.isEmpty ? '' : muscleGroups.first;
 
   String get plannedWeightLabel {
@@ -82,6 +106,22 @@ class Exercise extends HiveObject {
   String get plannedVolumeLabel => '$plannedSets x $repRangeLabel · $plannedWeightLabel';
 
   bool shouldIncreaseWeight(List<int> completedReps) {
+    return shouldIncreaseWeightEarly(completedReps) ||
+        shouldIncreaseWeightAfterAllSets(completedReps);
+  }
+
+  bool shouldIncreaseWeightEarly(List<int> completedReps) {
+    if (completedReps.length < 2) {
+      return false;
+    }
+
+    final firstSetReachedTop = completedReps[0] >= targetMaxReps;
+    final secondSetNearlyReachedTop = completedReps[1] >= targetMaxReps - 1;
+
+    return firstSetReachedTop && secondSetNearlyReachedTop;
+  }
+
+  bool shouldIncreaseWeightAfterAllSets(List<int> completedReps) {
     if (completedReps.length < plannedSets) {
       return false;
     }

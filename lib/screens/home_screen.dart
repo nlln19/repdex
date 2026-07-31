@@ -57,31 +57,42 @@ class HomeScreen extends StatelessWidget {
           ? const Color(0xFF120506)
           : const Color(0xFF050A0F),
       body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 22, 20, 16),
-              sliver: SliverToBoxAdapter(
-                child: _buildHeader(
-                  context: context,
-                  isDepleted: todayWorkout.isDepleted,
-                ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxHeight < 760;
+            final veryCompact = constraints.maxHeight < 690;
+
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                18,
+                veryCompact ? 10 : 16,
+                18,
+                veryCompact ? 10 : 16,
               ),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              sliver: SliverToBoxAdapter(child: _buildBodyCard(todayWorkout)),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 30),
-              sliver: SliverToBoxAdapter(
-                child: _buildActions(
-                  context: context,
-                  todayWorkout: todayWorkout,
-                ),
+              child: Column(
+                children: [
+                  _buildHeader(
+                    context: context,
+                    isDepleted: todayWorkout.isDepleted,
+                    compact: compact,
+                  ),
+                  SizedBox(height: veryCompact ? 8 : 12),
+                  Expanded(
+                    child: _buildBodyCard(
+                      todayWorkout,
+                      compact: compact,
+                    ),
+                  ),
+                  SizedBox(height: veryCompact ? 8 : 12),
+                  _buildActions(
+                    context: context,
+                    todayWorkout: todayWorkout,
+                    compact: compact,
+                  ),
+                ],
               ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
@@ -276,42 +287,18 @@ class HomeScreen extends StatelessWidget {
   Widget _buildHeader({
     required BuildContext context,
     required bool isDepleted,
+    required bool compact,
   }) {
     final accentColor = isDepleted ? _redAccent : _cyanAccent;
 
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 58),
-      child: Stack(
-        alignment: Alignment.center,
+    return SizedBox(
+      height: compact ? 52 : 58,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Gym Tracker',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -1.4,
-                  color: isDepleted ? const Color(0xFFFFE4E6) : const Color(0xFFEAF2F4),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                isDepleted ? 'Recovery mode. Bis morgen.' : 'Track performance. Build strength.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: isDepleted ? const Color(0xFFFCA5A5) : const Color(0xFF8A93A3),
-                  fontSize: 15,
-                  letterSpacing: 0.3,
-                ),
-              ),
-            ],
-          ),
-          Positioned(
-            left: 0,
-            top: 0,
+          SizedBox(
+            width: 48,
+            height: 48,
             child: _HeaderIconButton(
               icon: Icons.tune_rounded,
               accentColor: accentColor,
@@ -323,9 +310,42 @@ class HomeScreen extends StatelessWidget {
               },
             ),
           ),
-          Positioned(
-            right: 0,
-            top: 0,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'RepDex',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: compact ? 17 : 18,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -1.4,
+                    color: isDepleted ? const Color(0xFFFFE4E6) : const Color(0xFFEAF2F4),
+                  ),
+                ),
+                SizedBox(height: compact ? 3 : 6),
+                Text(
+                  isDepleted ? 'Recovery mode. Bis morgen.' : 'Track reps. Build strength.',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: isDepleted ? const Color(0xFFFCA5A5) : const Color(0xFF8A93A3),
+                    fontSize: compact ? 12 : 15,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 48,
+            height: 48,
             child: _AchievementsButton(
               accentColor: accentColor,
               isDepleted: isDepleted,
@@ -339,7 +359,10 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBodyCard(_TodayWorkoutData todayWorkout) {
+  Widget _buildBodyCard(
+    _TodayWorkoutData todayWorkout, {
+    required bool compact,
+  }) {
     final accentColor = todayWorkout.isDepleted ? _redAccent : _cyanAccent;
     final cardColor = todayWorkout.isDepleted
         ? const Color(0xFF1A0708)
@@ -358,7 +381,7 @@ class HomeScreen extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: cardColor,
-        borderRadius: BorderRadius.circular(32),
+        borderRadius: BorderRadius.circular(compact ? 26 : 32),
         border: Border.all(color: accentColor.withValues(alpha: 0.18)),
         boxShadow: [
           BoxShadow(
@@ -369,7 +392,12 @@ class HomeScreen extends StatelessWidget {
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
+        padding: EdgeInsets.fromLTRB(
+          compact ? 12 : 16,
+          compact ? 12 : 18,
+          compact ? 12 : 16,
+          compact ? 12 : 20,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -378,12 +406,16 @@ class HomeScreen extends StatelessWidget {
               subtitle: subtitle,
               accentColor: accentColor,
               isDepleted: todayWorkout.isDepleted,
+              compact: compact,
             ),
-            const SizedBox(height: 14),
-            BodyStrengthMap(
-              trainedMuscleGroups: todayWorkout.muscleGroups,
-              highlightFullBody: todayWorkout.highlightFullBody,
-              isDepleted: todayWorkout.isDepleted,
+            SizedBox(height: compact ? 8 : 14),
+            Expanded(
+              child: BodyStrengthMap(
+                trainedMuscleGroups: todayWorkout.muscleGroups,
+                highlightFullBody: todayWorkout.highlightFullBody,
+                isDepleted: todayWorkout.isDepleted,
+                compact: compact,
+              ),
             ),
           ],
         ),
@@ -394,6 +426,7 @@ class HomeScreen extends StatelessWidget {
   Widget _buildActions({
     required BuildContext context,
     required _TodayWorkoutData todayWorkout,
+    required bool compact,
   }) {
     final startUnavailable = todayWorkout.isDepleted || todayWorkout.isSkipped;
     final startLabel = todayWorkout.isDepleted
@@ -419,13 +452,14 @@ class HomeScreen extends StatelessWidget {
                   : Icons.bolt_rounded,
           isUnavailable: startUnavailable,
           isDepleted: todayWorkout.isDepleted,
+          compact: compact,
           onTap: startUnavailable
               ? null
               : () {
                   _startWorkout(context);
                 },
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: compact ? 8 : 10),
         Row(
           children: [
             Expanded(
@@ -774,21 +808,26 @@ class _TodayWorkoutHeader extends StatelessWidget {
     required this.subtitle,
     required this.accentColor,
     required this.isDepleted,
+    required this.compact,
   });
 
   final String title;
   final String subtitle;
   final Color accentColor;
   final bool isDepleted;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 12 : 14,
+        vertical: compact ? 9 : 12,
+      ),
       decoration: BoxDecoration(
         color: isDepleted ? const Color(0xFF120506) : const Color(0xFF050A0F),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(compact ? 18 : 20),
         border: Border.all(color: accentColor.withValues(alpha: 0.18)),
       ),
       child: Row(
@@ -804,10 +843,10 @@ class _TodayWorkoutHeader extends StatelessWidget {
             child: Icon(
               isDepleted ? Icons.local_fire_department_rounded : Icons.calendar_today_rounded,
               color: accentColor,
-              size: 20,
+              size: compact ? 18 : 20,
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: compact ? 9 : 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -818,19 +857,19 @@ class _TodayWorkoutHeader extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: isDepleted ? const Color(0xFFFFE4E6) : const Color(0xFFEAF2F4),
-                    fontSize: 16,
+                    fontSize: compact ? 14 : 16,
                     fontWeight: FontWeight.w900,
                     letterSpacing: -0.2,
                   ),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: compact ? 1 : 2),
                 Text(
                   subtitle,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: isDepleted ? const Color(0xFFFCA5A5) : const Color(0xFF8A93A3),
-                    fontSize: 12,
+                    fontSize: compact ? 11 : 12,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -858,40 +897,11 @@ class _HeaderIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: Ink(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: isDepleted
-                  ? const [Color(0xFF2A090A), Color(0xFF120506)]
-                  : const [Color(0xFF122031), Color(0xFF071018)],
-            ),
-            border: Border.all(color: accentColor.withValues(alpha: 0.38)),
-            boxShadow: [
-              BoxShadow(
-                color: accentColor.withValues(alpha: 0.18),
-                blurRadius: 20,
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          child: Icon(
-            icon,
-            color: isDepleted ? const Color(0xFFFCA5A5) : const Color(0xFF7DD3FC),
-            size: 24,
-          ),
-        ),
-      ),
+    return _CircleIconButtonShell(
+      icon: icon,
+      onTap: onTap,
+      accentColor: accentColor,
+      isDepleted: isDepleted,
     );
   }
 }
@@ -909,37 +919,64 @@ class _AchievementsButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: Ink(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: isDepleted
-                  ? const [Color(0xFF2A090A), Color(0xFF120506)]
-                  : const [Color(0xFF122031), Color(0xFF071018)],
-            ),
-            border: Border.all(color: accentColor.withValues(alpha: 0.38)),
-            boxShadow: [
-              BoxShadow(
-                color: accentColor.withValues(alpha: 0.18),
-                blurRadius: 20,
-                spreadRadius: 1,
+    return _CircleIconButtonShell(
+      icon: Icons.emoji_events_rounded,
+      onTap: onTap,
+      accentColor: accentColor,
+      isDepleted: isDepleted,
+    );
+  }
+}
+
+class _CircleIconButtonShell extends StatelessWidget {
+  const _CircleIconButtonShell({
+    required this.icon,
+    required this.onTap,
+    required this.accentColor,
+    required this.isDepleted,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color accentColor;
+  final bool isDepleted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Container(
+            width: 48,
+            height: 48,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: isDepleted
+                    ? const [Color(0xFF2A090A), Color(0xFF120506)]
+                    : const [Color(0xFF122031), Color(0xFF071018)],
               ),
-            ],
-          ),
-          child: Icon(
-            Icons.emoji_events_rounded,
-            color: isDepleted ? const Color(0xFFFCA5A5) : const Color(0xFF7DD3FC),
-            size: 24,
+              border: Border.all(color: accentColor.withValues(alpha: 0.38)),
+              boxShadow: [
+                BoxShadow(
+                  color: accentColor.withValues(alpha: 0.18),
+                  blurRadius: 20,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child: Icon(
+              icon,
+              color: isDepleted ? const Color(0xFFFCA5A5) : const Color(0xFF7DD3FC),
+              size: 24,
+            ),
           ),
         ),
       ),
@@ -954,6 +991,7 @@ class _StartWorkoutButton extends StatelessWidget {
     required this.onTap,
     required this.isUnavailable,
     required this.isDepleted,
+    required this.compact,
     this.subtitle,
   });
 
@@ -963,6 +1001,7 @@ class _StartWorkoutButton extends StatelessWidget {
   final VoidCallback? onTap;
   final bool isUnavailable;
   final bool isDepleted;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -980,9 +1019,9 @@ class _StartWorkoutButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(28),
         onTap: isUnavailable ? null : onTap,
         child: Ink(
-          height: 88,
+          height: compact ? 66 : 82,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(compact ? 22 : 28),
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
@@ -1027,11 +1066,11 @@ class _StartWorkoutButton extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      width: 42,
-                      height: 42,
+                      width: compact ? 36 : 42,
+                      height: compact ? 36 : 42,
                       decoration: BoxDecoration(
                         color: accentColor.withValues(alpha: isUnavailable ? 0.08 : 0.10),
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(compact ? 14 : 16),
                         border: Border.all(
                           color: accentColor.withValues(alpha: isUnavailable ? 0.20 : 0.32),
                         ),
@@ -1039,10 +1078,10 @@ class _StartWorkoutButton extends StatelessWidget {
                       child: Icon(
                         icon,
                         color: accentColor.withValues(alpha: isUnavailable ? 0.70 : 1),
-                        size: 24,
+                        size: compact ? 21 : 24,
                       ),
                     ),
-                    const SizedBox(width: 14),
+                    SizedBox(width: compact ? 10 : 14),
                     Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1055,7 +1094,7 @@ class _StartWorkoutButton extends StatelessWidget {
                                 : isUnavailable
                                     ? const Color(0xFF94A3B8)
                                     : const Color(0xFFEAF2F4),
-                            fontSize: 24,
+                            fontSize: compact ? 20 : 24,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 1.2,
                           ),
@@ -1068,7 +1107,7 @@ class _StartWorkoutButton extends StatelessWidget {
                               color: isDepleted
                                   ? const Color(0xFFFCA5A5)
                                   : const Color(0xFF8A93A3),
-                              fontSize: 12,
+                              fontSize: compact ? 10 : 12,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -1121,7 +1160,7 @@ class _NeonActionButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(22),
           onTap: enabled ? onTap : null,
           child: Ink(
-            height: compact ? 70 : 74,
+            height: compact ? 56 : 70,
             decoration: BoxDecoration(
               gradient: backgroundGradient,
               borderRadius: BorderRadius.circular(22),
@@ -1137,20 +1176,20 @@ class _NeonActionButton extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  width: compact ? 34 : 38,
-                  height: compact ? 34 : 38,
+                  width: compact ? 30 : 38,
+                  height: compact ? 30 : 38,
                   decoration: BoxDecoration(
                     color: accentColor.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(compact ? 12 : 14),
                     border: Border.all(color: accentColor.withValues(alpha: 0.24)),
                   ),
                   child: Icon(
                     icon,
-                    size: compact ? 20 : 23,
+                    size: compact ? 18 : 23,
                     color: isDepleted ? const Color(0xFFFCA5A5) : const Color(0xFF7DD3FC),
                   ),
                 ),
-                const SizedBox(width: 10),
+                SizedBox(width: compact ? 8 : 10),
                 Flexible(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -1163,7 +1202,7 @@ class _NeonActionButton extends StatelessWidget {
                         style: TextStyle(
                           color: isDepleted ? const Color(0xFFFFE4E6) : Colors.white,
                           fontWeight: FontWeight.w900,
-                          fontSize: compact ? 14 : 16,
+                          fontSize: compact ? 13 : 16,
                           letterSpacing: -0.1,
                         ),
                       ),

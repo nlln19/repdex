@@ -3,10 +3,10 @@
 // Check in to version control
 
 import 'package:hive_ce/hive.dart';
-import 'package:gym/models/exercise.dart';
-import 'package:gym/models/workout_plan.dart';
-import 'package:gym/models/workout_session.dart';
-import 'package:gym/models/workout_set.dart';
+import 'package:repdex/models/exercise.dart';
+import 'package:repdex/models/workout_plan.dart';
+import 'package:repdex/models/workout_session.dart';
+import 'package:repdex/models/workout_set.dart';
 
 extension HiveRegistrar on HiveInterface {
   void registerAdapters() {

@@ -5,6 +5,8 @@ import 'package:hive_ce_flutter/hive_flutter.dart';
 
 import '../models/exercise.dart';
 import '../models/workout_plan.dart';
+import '../models/workout_session.dart';
+import '../models/workout_set.dart';
 import '../services/rest_sound_player.dart';
 
 class WorkoutStartScreen extends StatefulWidget {
@@ -26,6 +28,8 @@ class WorkoutStartScreen extends StatefulWidget {
   static const String activeWorkoutPhaseKey = 'active_workout_phase';
   static const String activeWorkoutRestEndMillisKey = 'active_workout_rest_end_millis';
   static const String activeWorkoutLoggedRepsKey = 'active_workout_logged_reps';
+  static const String activeWorkoutLoggedWeightsKey = 'active_workout_logged_weights';
+  static const String activeWorkoutNextWeightsKey = 'active_workout_next_weights';
   static const String completedWorkoutDateKey = 'completed_workout_date';
   static const String completedWorkoutMuscleGroupsKey = 'completed_workout_muscle_groups';
   static const String completedWorkoutDayNameKey = 'completed_workout_day_name';
@@ -53,6 +57,8 @@ class WorkoutStartScreen extends StatefulWidget {
     await settingsBox.delete(activeWorkoutPhaseKey);
     await settingsBox.delete(activeWorkoutRestEndMillisKey);
     await settingsBox.delete(activeWorkoutLoggedRepsKey);
+    await settingsBox.delete(activeWorkoutLoggedWeightsKey);
+    await settingsBox.delete(activeWorkoutNextWeightsKey);
   }
 
   @override
@@ -74,6 +80,8 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
   bool _isResting = false;
   bool _isFinished = false;
   final Map<String, int> _loggedReps = {};
+  final Map<String, double> _loggedWeights = {};
+  final Map<String, double> _nextWeights = {};
 
   Exercise get _currentExercise => widget.exercises[_safeExerciseIndex];
 
@@ -141,7 +149,12 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
     for (final exercise in widget.exercises) {
       final reps = _loggedRepsFor(exercise);
       if (exercise.shouldIncreaseWeight(reps)) {
-        suggestions.add(_ProgressionSuggestion(exercise: exercise));
+        suggestions.add(
+          _ProgressionSuggestion(
+            exercise: exercise,
+            nextWeight: _nextWeights[exercise.id],
+          ),
+        );
       }
     }
 
@@ -434,6 +447,8 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
     _isResting = restoredPhase == _phaseRest;
     _restEndMillis = restoredRestEndMillis <= 0 ? null : restoredRestEndMillis;
     _restoreLoggedReps();
+    _restoreLoggedWeights();
+    _restoreNextWeights();
 
     return true;
   }
@@ -460,6 +475,8 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
     await _settingsBox.put(WorkoutStartScreen.activeWorkoutPhaseKey, _phaseSet);
     await _settingsBox.delete(WorkoutStartScreen.activeWorkoutRestEndMillisKey);
     await _persistLoggedReps();
+    await _persistLoggedWeights();
+    await _persistNextWeights();
   }
 
   Future<void> _persistRestState() async {
@@ -473,11 +490,27 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
       _restEndMillis ?? DateTime.now().millisecondsSinceEpoch,
     );
     await _persistLoggedReps();
+    await _persistLoggedWeights();
+    await _persistNextWeights();
   }
 
   Future<void> _persistLoggedReps() async {
     final entries = _loggedReps.entries.map((entry) => '${entry.key}|${entry.value}').toList();
     await _settingsBox.put(WorkoutStartScreen.activeWorkoutLoggedRepsKey, entries);
+  }
+
+  Future<void> _persistLoggedWeights() async {
+    final entries = _loggedWeights.entries
+        .map((entry) => '${entry.key}|${entry.value}')
+        .toList();
+    await _settingsBox.put(WorkoutStartScreen.activeWorkoutLoggedWeightsKey, entries);
+  }
+
+  Future<void> _persistNextWeights() async {
+    final entries = _nextWeights.entries
+        .map((entry) => '${entry.key}|${entry.value}')
+        .toList();
+    await _settingsBox.put(WorkoutStartScreen.activeWorkoutNextWeightsKey, entries);
   }
 
   void _restoreLoggedReps() {
@@ -505,6 +538,45 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
     }
   }
 
+  void _restoreLoggedWeights() {
+    _restoreDoubleMap(
+      key: WorkoutStartScreen.activeWorkoutLoggedWeightsKey,
+      target: _loggedWeights,
+    );
+  }
+
+  void _restoreNextWeights() {
+    _restoreDoubleMap(
+      key: WorkoutStartScreen.activeWorkoutNextWeightsKey,
+      target: _nextWeights,
+    );
+  }
+
+  void _restoreDoubleMap({required String key, required Map<String, double> target}) {
+    final rawEntries = _settingsBox.get(key);
+    target.clear();
+
+    if (rawEntries is! List) {
+      return;
+    }
+
+    for (final rawEntry in rawEntries) {
+      final entry = rawEntry.toString();
+      final splitIndex = entry.lastIndexOf('|');
+
+      if (splitIndex <= 0 || splitIndex >= entry.length - 1) {
+        continue;
+      }
+
+      final mapKey = entry.substring(0, splitIndex);
+      final value = double.tryParse(entry.substring(splitIndex + 1));
+
+      if (value != null && value >= 0) {
+        target[mapKey] = value;
+      }
+    }
+  }
+
   Future<void> _completeSet() async {
     if (_isResting || _isFinished) {
       return;
@@ -516,11 +588,21 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
       return;
     }
 
+    final completedExercise = _currentExercise;
+    final completedSet = _currentSet;
+
     setState(() {
-      _loggedReps[_setKey(_currentExercise, _currentSet)] = completedReps;
+      final setKey = _setKey(completedExercise, completedSet);
+      _loggedReps[setKey] = completedReps;
+      _loggedWeights[setKey] = completedExercise.plannedWeight;
     });
 
     await _persistLoggedReps();
+    await _persistLoggedWeights();
+
+    if (_shouldAskNextWeightNow(completedExercise, completedSet)) {
+      await _askAndSaveNextWeight(completedExercise);
+    }
 
     if (_isLastSetOfWorkout) {
       await _finishWorkout();
@@ -632,6 +714,159 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
     Navigator.of(context).pop(reps);
   }
 
+  Future<void> _askAndSaveNextWeight(Exercise exercise) async {
+    final nextWeight = await _askNextWeight(exercise);
+
+    if (!mounted || nextWeight == null) {
+      return;
+    }
+
+    final exerciseBox = Hive.box<Exercise>('exercises');
+    final updatedExercise = exercise.copyWith(plannedWeight: nextWeight);
+
+    await exerciseBox.put(exercise.id, updatedExercise);
+
+    setState(() {
+      _nextWeights[exercise.id] = nextWeight;
+    });
+
+    await _persistNextWeights();
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Gespeichert: ${exercise.name} nächstes Mal mit ${_formatWeight(nextWeight)}.',
+        ),
+        backgroundColor: const Color(0xFF065F46),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<double?> _askNextWeight(Exercise exercise) async {
+    final suggestedWeight = exercise.plannedWeight > 0 ? exercise.plannedWeight + 2.5 : 0.0;
+    final controller = TextEditingController(text: _formatWeightInput(suggestedWeight));
+
+    final result = await showModalBottomSheet<double>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF09131B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            18,
+            18,
+            18,
+            MediaQuery.of(context).viewInsets.bottom + 18,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Gewicht fürs nächste Mal',
+                style: TextStyle(
+                  color: Color(0xFFEAF2F4),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${exercise.name}: Alle Sätze im oberen Zielbereich geschafft.',
+                style: const TextStyle(
+                  color: Color(0xFF8A93A3),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                style: const TextStyle(
+                  color: Color(0xFFEAF2F4),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                ),
+                decoration: InputDecoration(
+                  labelText: 'Nächstes Gewicht in kg',
+                  helperText: '0 = Bodyweight',
+                  helperStyle: const TextStyle(color: Color(0xFF64748B)),
+                  labelStyle: const TextStyle(color: Color(0xFF8A93A3)),
+                  filled: true,
+                  fillColor: const Color(0xFF050A0F),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: const BorderSide(color: Color(0xFF1F3345)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: const BorderSide(color: Color(0xFF1F3345)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: const BorderSide(color: Color(0xFF00E5FF), width: 1.4),
+                  ),
+                ),
+                onSubmitted: (_) => _submitNextWeight(context, controller),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 54,
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF8A93A3),
+                          side: const BorderSide(color: Color(0xFF1F3345)),
+                        ),
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Überspringen'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: SizedBox(
+                      height: 54,
+                      child: FilledButton(
+                        onPressed: () => _submitNextWeight(context, controller),
+                        child: const Text('Speichern'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    return result;
+  }
+
+  void _submitNextWeight(BuildContext context, TextEditingController controller) {
+    final text = controller.text.trim().replaceAll(',', '.');
+    final weight = double.tryParse(text);
+
+    if (weight == null || weight < 0) {
+      return;
+    }
+
+    Navigator.of(context).pop(weight);
+  }
+
   void _startRest() {
     _restTimer?.cancel();
 
@@ -738,6 +973,7 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
       _restEndMillis = null;
     }
 
+    await _saveWorkoutSession();
     await _settingsBox.put(WorkoutStartScreen.completedWorkoutDateKey, _todayKey);
     await _settingsBox.put(
       WorkoutStartScreen.completedWorkoutDayNameKey,
@@ -748,6 +984,55 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
       _completedMuscleGroups().toList()..sort(),
     );
     await WorkoutStartScreen.clearActiveWorkout(_settingsBox);
+  }
+
+  Future<void> _saveWorkoutSession() async {
+    final sessionBox = Hive.box<WorkoutSession>('workout_sessions');
+    final exerciseSets = <String, List<WorkoutSet>>{};
+    final exerciseNames = <String, String>{};
+
+    for (final exercise in widget.exercises) {
+      final sets = <WorkoutSet>[];
+
+      for (var setNumber = 1; setNumber <= _setCountFor(exercise); setNumber++) {
+        final reps = _loggedReps[_setKey(exercise, setNumber)];
+
+        if (reps == null) {
+          continue;
+        }
+
+        sets.add(
+          WorkoutSet(
+            weight: _loggedWeights[_setKey(exercise, setNumber)] ?? exercise.plannedWeight,
+            reps: reps,
+          ),
+        );
+      }
+
+      if (sets.isEmpty) {
+        continue;
+      }
+
+      exerciseSets[exercise.id] = sets;
+      exerciseNames[exercise.id] = exercise.name;
+    }
+
+    if (exerciseSets.isEmpty) {
+      return;
+    }
+
+    final now = DateTime.now();
+    final session = WorkoutSession(
+      id: '${_todayKey}_${widget.plan.id}_${now.millisecondsSinceEpoch}',
+      workoutPlanId: widget.plan.id,
+      workoutPlanName: widget.plan.name,
+      dayName: _completedDayDisplayName(),
+      date: now,
+      exerciseSets: exerciseSets,
+      exerciseNames: exerciseNames,
+    );
+
+    await sessionBox.put(session.id, session);
   }
 
   String _completedDayDisplayName() {
@@ -813,12 +1098,37 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
     return exercise.shouldIncreaseWeight(_loggedRepsFor(exercise));
   }
 
-  String _increaseMessage(Exercise exercise) {
-    if (exercise.plannedWeight <= 0) {
-      return 'Alle Sätze im oberen Zielbereich. Nächstes Mal schwerere Variante wählen.';
+  bool _shouldAskNextWeightNow(Exercise exercise, int completedSet) {
+    if (_nextWeights.containsKey(exercise.id)) {
+      return false;
     }
 
-    return 'Alle Sätze im oberen Zielbereich. Nächstes Mal Gewicht leicht erhöhen.';
+    final completedReps = _loggedRepsFor(exercise);
+
+    if (completedSet == 2 && exercise.shouldIncreaseWeightEarly(completedReps)) {
+      return true;
+    }
+
+    if (completedSet >= _setCountFor(exercise) &&
+        exercise.shouldIncreaseWeightAfterAllSets(completedReps)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  String _increaseMessage(Exercise exercise) {
+    final nextWeight = _nextWeights[exercise.id];
+
+    if (nextWeight != null) {
+      return 'Gespeichert fürs nächste Mal: ${_formatWeight(nextWeight)}.';
+    }
+
+    if (exercise.plannedWeight <= 0) {
+      return 'Oberen Zielbereich früh erreicht. Nächstes Mal schwerere Variante wählen.';
+    }
+
+    return 'Oberen Zielbereich früh erreicht. Nächstes Mal Gewicht erhöhen.';
   }
 }
 
@@ -1000,11 +1310,18 @@ class _ProgressionSummary extends StatelessWidget {
 }
 
 class _ProgressionSuggestion {
-  const _ProgressionSuggestion({required this.exercise});
+  const _ProgressionSuggestion({required this.exercise, this.nextWeight});
 
   final Exercise exercise;
+  final double? nextWeight;
 
   String get message {
+    final savedNextWeight = nextWeight;
+
+    if (savedNextWeight != null) {
+      return 'nächstes Mal ${_formatWeight(savedNextWeight)}';
+    }
+
     if (exercise.plannedWeight <= 0) {
       return 'schwerere Variante wählen';
     }
@@ -1068,6 +1385,30 @@ class _BottomActionButton extends StatelessWidget {
       ),
     );
   }
+}
+
+String _formatWeight(double weight) {
+  if (weight <= 0) {
+    return 'Bodyweight';
+  }
+
+  final roundedWeight = weight.roundToDouble();
+
+  if (roundedWeight == weight) {
+    return '${roundedWeight.toInt()} kg';
+  }
+
+  return '${weight.toStringAsFixed(1).replaceAll('.', ',')} kg';
+}
+
+String _formatWeightInput(double weight) {
+  final roundedWeight = weight.roundToDouble();
+
+  if (roundedWeight == weight) {
+    return roundedWeight.toInt().toString();
+  }
+
+  return weight.toStringAsFixed(1);
 }
 
 String _formatSeconds(int seconds) {

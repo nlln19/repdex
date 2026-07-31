@@ -24,5 +24,5 @@ Future<void> main() async {
   await Hive.openBox<WorkoutSession>('workout_sessions');
   await Hive.openBox('settings');
 
-  runApp(const ProviderScope(child: GymTrackerApp()));
+  runApp(const ProviderScope(child: RepDexApp()));
 }

@@ -7,13 +7,13 @@ class BodyStrengthMap extends StatelessWidget {
     required this.trainedMuscleGroups,
     required this.highlightFullBody,
     this.isDepleted = false,
+    this.compact = false,
   });
 
   final Set<String> trainedMuscleGroups;
   final bool highlightFullBody;
   final bool isDepleted;
-
-  static const double _singleBodyWidth = 148;
+  final bool compact;
 
   static const Set<String> _allFrontBodyParts = {
     'neck',
@@ -50,98 +50,124 @@ class BodyStrengthMap extends StatelessWidget {
         ? const Color(0xFFFF6B5F)
         : const Color(0xFF00E5FF);
 
-    return Container(
-      width: double.infinity,
-      height: 380,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF061018),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(
-          color: activeColor.withValues(alpha: 0.18),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: activeColor.withValues(alpha: 0.14),
-            blurRadius: 34,
-            spreadRadius: 2,
-          ),
-        ],
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Positioned.fill(
-            child: IgnorePointer(
-              child: CustomPaint(
-                painter: _CyberGridPainter(
-                  glowEnabled: hasFocus,
-                  glowColor: activeColor,
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final padding = compact ? 10.0 : 16.0;
+        final maxHeight = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : compact
+                ? 300.0
+                : 380.0;
+        final maxWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : 340.0;
+        final mapHeight = maxHeight.clamp(210.0, compact ? 320.0 : 380.0).toDouble();
+        final availableWidth = maxWidth - (padding * 2);
+        final singleBodyWidth = ((availableWidth - 8) / 2)
+            .clamp(96.0, compact ? 132.0 : 148.0)
+            .toDouble();
+
+        return SizedBox(
+          width: double.infinity,
+          height: mapHeight,
+          child: Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(padding),
+            decoration: BoxDecoration(
+              color: const Color(0xFF061018),
+              borderRadius: BorderRadius.circular(compact ? 22 : 28),
+              border: Border.all(
+                color: activeColor.withValues(alpha: 0.18),
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: activeColor.withValues(alpha: compact ? 0.10 : 0.14),
+                  blurRadius: compact ? 24 : 34,
+                  spreadRadius: compact ? 1 : 2,
+                ),
+              ],
             ),
-          ),
-          Positioned.fill(
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(24),
-                  gradient: RadialGradient(
-                    center: Alignment.center,
-                    radius: 0.9,
-                    colors: [
-                      activeColor.withValues(
-                        alpha: hasFocus ? 0.18 : 0.08,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _CyberGridPainter(
+                        glowEnabled: hasFocus,
+                        glowColor: activeColor,
                       ),
-                      const Color(0xFF071018).withValues(alpha: 0.30),
-                      Colors.transparent,
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ),
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _BodySideChart(
-                viewType: BodyViewType.front,
-                baseParts: _allFrontBodyParts,
-                selectedParts: selection.frontParts,
-                width: _singleBodyWidth,
-                activeColor: activeColor,
-                softActiveColor: softActiveColor,
-              ),
-              const SizedBox(width: 8),
-              _BodySideChart(
-                viewType: BodyViewType.back,
-                baseParts: _allBackBodyParts,
-                selectedParts: selection.backParts,
-                width: _singleBodyWidth,
-                activeColor: activeColor,
-                softActiveColor: softActiveColor,
-              ),
-            ],
-          ),
-          if (hasFocus)
-            IgnorePointer(
-              child: Container(
-                width: _singleBodyWidth * 2.15,
-                height: _singleBodyWidth * 1.95,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(999),
-                  boxShadow: [
-                    BoxShadow(
-                      color: softActiveColor.withValues(alpha: 0.28),
-                      blurRadius: highlightFullBody ? 58 : 44,
-                      spreadRadius: highlightFullBody ? 8 : 4,
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(compact ? 18 : 24),
+                        gradient: RadialGradient(
+                          center: Alignment.center,
+                          radius: 0.9,
+                          colors: [
+                            activeColor.withValues(
+                              alpha: hasFocus ? 0.18 : 0.08,
+                            ),
+                            const Color(0xFF071018).withValues(alpha: 0.30),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _BodySideChart(
+                      viewType: BodyViewType.front,
+                      baseParts: _allFrontBodyParts,
+                      selectedParts: selection.frontParts,
+                      width: singleBodyWidth,
+                      activeColor: activeColor,
+                      softActiveColor: softActiveColor,
+                    ),
+                    const SizedBox(width: 8),
+                    _BodySideChart(
+                      viewType: BodyViewType.back,
+                      baseParts: _allBackBodyParts,
+                      selectedParts: selection.backParts,
+                      width: singleBodyWidth,
+                      activeColor: activeColor,
+                      softActiveColor: softActiveColor,
                     ),
                   ],
                 ),
-              ),
+                if (hasFocus)
+                  IgnorePointer(
+                    child: Container(
+                      width: singleBodyWidth * 2.15,
+                      height: singleBodyWidth * 1.95,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(999),
+                        boxShadow: [
+                          BoxShadow(
+                            color: softActiveColor.withValues(alpha: 0.28),
+                            blurRadius: highlightFullBody
+                                ? (compact ? 44 : 58)
+                                : (compact ? 34 : 44),
+                            spreadRadius: highlightFullBody
+                                ? (compact ? 5 : 8)
+                                : (compact ? 3 : 4),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             ),
-        ],
-      ),
+          ),
+        );
+      },
     );
   }
 

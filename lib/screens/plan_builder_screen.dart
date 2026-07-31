@@ -3604,21 +3604,24 @@ class _GlowIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: Ink(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: const Color(0xFF00E5FF).withValues(alpha: 0.10),
-            border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.24)),
+    return Semantics(
+      button: true,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Container(
+            width: 42,
+            height: 42,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFF00E5FF).withValues(alpha: 0.10),
+              border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.24)),
+            ),
+            child: Icon(icon, color: const Color(0xFF7DD3FC)),
           ),
-          child: Icon(icon, color: const Color(0xFF7DD3FC)),
         ),
       ),
     );

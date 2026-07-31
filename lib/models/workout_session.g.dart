@@ -24,13 +24,19 @@ class WorkoutSessionAdapter extends TypeAdapter<WorkoutSession> {
         (dynamic k, dynamic v) =>
             MapEntry(k as String, (v as List).cast<WorkoutSet>()),
       ),
+      workoutPlanName: fields[4] as String? ?? '',
+      dayName: fields[5] as String? ?? '',
+      exerciseNames: (fields[6] as Map?)?.map(
+            (dynamic k, dynamic v) => MapEntry(k as String, v as String),
+          ) ??
+          const {},
     );
   }
 
   @override
   void write(BinaryWriter writer, WorkoutSession obj) {
     writer
-      ..writeByte(4)
+      ..writeByte(7)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -38,7 +44,13 @@ class WorkoutSessionAdapter extends TypeAdapter<WorkoutSession> {
       ..writeByte(2)
       ..write(obj.date)
       ..writeByte(3)
-      ..write(obj.exerciseSets);
+      ..write(obj.exerciseSets)
+      ..writeByte(4)
+      ..write(obj.workoutPlanName)
+      ..writeByte(5)
+      ..write(obj.dayName)
+      ..writeByte(6)
+      ..write(obj.exerciseNames);
   }
 
   @override

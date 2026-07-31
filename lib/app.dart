@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 
 import 'screens/home_screen.dart';
 
-class GymTrackerApp extends StatelessWidget {
-  const GymTrackerApp({super.key});
+class RepDexApp extends StatelessWidget {
+  const RepDexApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Gym Tracker',
+      title: 'RepDex',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.dark,
       darkTheme: ThemeData(
