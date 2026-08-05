@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing to RepDex.
 
-RepDex is a simple workout tracking app focused on workout planning, progressive overload, rest timers, body-map feedback, and workout history.
+RepDex is a simple workout tracking app focused on workout planning, progressive overload, rest timers, body-map feedback and workout history.
 
 ## How to contribute
 
