@@ -60,7 +60,7 @@ header.site-header {
   letter-spacing: -0.7px;
 }
 
-.brand img { width: 68px; height: auto; display: block; border-radius: 0; box-shadow: none; background: transparent; filter: drop-shadow(0 0 14px rgba(0,229,255,.22)) drop-shadow(0 0 14px rgba(255,59,59,.16)); }
+.brand img { width: 44px; height: 44px; border-radius: 14px; box-shadow: 0 0 22px rgba(0,229,255,.14); }
 .brand span span:first-child { color: var(--cyan); }
 .brand span span:last-child { color: var(--red); }
 
@@ -69,16 +69,105 @@ nav a { color: var(--muted); text-decoration: none; font-weight: 750; font-size:
 nav a:hover { color: var(--cyan); }
 
 .hero { padding: 80px 0 64px; }
-.hero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 54px; align-items: center; }
+.hero-grid { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(280px, 0.72fr); gap: clamp(28px, 5vw, 54px); align-items: center; }
 .kicker { color: var(--cyan); font-weight: 900; letter-spacing: 0.16em; text-transform: uppercase; font-size: 12px; }
 h1 { margin: 12px 0 18px; font-size: clamp(42px, 7vw, 76px); line-height: 0.95; letter-spacing: -3px; }
 h1 .blue { color: var(--cyan); text-shadow: 0 0 28px rgba(0,229,255,.22); }
 h1 .red { color: var(--red); text-shadow: 0 0 28px rgba(255,59,59,.22); }
 .lead { color: var(--muted); font-size: clamp(17px, 2vw, 21px); max-width: 680px; }
 
+.hero-visual {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 360px;
+  max-height: 520px;
+  overflow: visible;
+}
+
+.hero-visual::before {
+  content: "";
+  position: absolute;
+  width: min(72%, 360px);
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 42% 44%, rgba(0, 229, 255, 0.17), transparent 58%),
+    radial-gradient(circle at 64% 56%, rgba(255, 59, 59, 0.11), transparent 62%);
+  filter: blur(18px);
+  opacity: 0.95;
+}
+
+.hero-body-map {
+  position: relative;
+  z-index: 1;
+  width: clamp(280px, 34vw, 430px);
+  max-width: 100%;
+  max-height: min(58vh, 480px);
+  height: auto;
+  object-fit: contain;
+  display: block;
+  filter:
+    drop-shadow(0 0 22px rgba(0, 229, 255, 0.25))
+    drop-shadow(0 28px 60px rgba(0, 0, 0, 0.35));
+}
+
 .cta-row { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 30px; }
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 0 18px; border-radius: 18px; font-weight: 900; text-decoration: none; border: 1px solid var(--border); }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 0 18px;
+  border-radius: 18px;
+  font-weight: 900;
+  text-decoration: none;
+  border: 1px solid var(--border);
+  line-height: 1;
+  white-space: nowrap;
+}
 .btn.primary { background: linear-gradient(135deg, var(--cyan), #3ddc97); color: #041013; box-shadow: 0 0 30px rgba(0,229,255,.20); }
+.btn.download-btn {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background: linear-gradient(105deg, var(--cyan) 0%, #33d8d8 44%, var(--red) 100%);
+  color: #ffffff;
+  border: 0;
+  outline: 1px solid rgba(255, 255, 255, 0.12);
+  outline-offset: -1px;
+  text-shadow: 0 1px 16px rgba(0, 0, 0, 0.36);
+  box-shadow:
+    0 0 28px rgba(0, 229, 255, 0.18),
+    0 0 34px rgba(255, 59, 59, 0.16);
+  transform: translateZ(0);
+  background-clip: padding-box;
+}
+
+.btn.download-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.16), transparent 42%, rgba(255, 255, 255, 0.08));
+  pointer-events: none;
+  z-index: -1;
+}
+
+.download-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.22);
+  color: #ffffff;
+  flex: 0 0 auto;
+}
 .btn.secondary { color: var(--text); background: rgba(8,17,26,.68); }
 
 .hero-card { border: 1px solid var(--border); border-radius: 34px; overflow: hidden; background: rgba(7,16,24,.7); box-shadow: 0 28px 70px rgba(0,0,0,.22); }
@@ -119,6 +208,9 @@ footer a:hover { color: var(--cyan); }
   nav { justify-content: flex-start; gap: 12px; }
   .hero { padding-top: 44px; }
   .hero-grid, .split { grid-template-columns: 1fr; }
+
+  .hero-visual { min-height: 260px; margin-top: 18px; }
+  .hero-body-map { width: min(86vw, 340px); max-height: 360px; }
   .cards { grid-template-columns: 1fr; }
   h1 { letter-spacing: -1.8px; }
 }
