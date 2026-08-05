@@ -697,7 +697,7 @@ class _WorkoutStartScreenState extends State<WorkoutStartScreen> {
     );
 
     // Do not dispose this local controller here. On Flutter Web, the bottom
-    // sheet can still rebuild for a frame while closing, and disposing the
+    // sheet can still rebuild for a frame while closing and disposing the
     // controller immediately can trigger: "TextEditingController was used after
     // being disposed." The controller is short-lived and will be collected
     // after the sheet is closed.

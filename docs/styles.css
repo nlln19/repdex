@@ -26,21 +26,8 @@ body {
   line-height: 1.65;
 }
 
-body.light-page {
-  background: #f8fafc;
-  color: #111827;
-}
 
-body.light-page header.site-header {
-  background: rgba(248, 250, 252, 0.88);
-  border-bottom: 1px solid #e5e7eb;
-}
 
-body.light-page nav a { color: #334155; }
-body.light-page nav a:hover { color: #0891b2; }
-body.light-page .legal-card { background: #ffffff; border-color: #e5e7eb; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.07); }
-body.light-page .muted { color: #64748b; }
-body.light-page footer { border-top-color: #e5e7eb; color: #64748b; }
 
 .container { width: min(1120px, calc(100% - 40px)); margin: 0 auto; }
 .narrow { width: min(850px, calc(100% - 40px)); margin: 0 auto; }
@@ -73,7 +60,7 @@ header.site-header {
   letter-spacing: -0.7px;
 }
 
-.brand img { width: 44px; height: 44px; border-radius: 14px; box-shadow: 0 0 22px rgba(0,229,255,.14); }
+.brand img { width: 68px; height: auto; display: block; border-radius: 0; box-shadow: none; background: transparent; filter: drop-shadow(0 0 14px rgba(0,229,255,.22)) drop-shadow(0 0 14px rgba(255,59,59,.16)); }
 .brand span span:first-child { color: var(--cyan); }
 .brand span span:last-child { color: var(--red); }
 
@@ -117,7 +104,7 @@ h1 .red { color: var(--red); text-shadow: 0 0 28px rgba(255,59,59,.22); }
 .legal-card { margin: 36px 0; padding: 28px; border-radius: 26px; background: rgba(7,16,24,.74); border: 1px solid rgba(0,229,255,.14); }
 .legal-card h1 { font-size: clamp(34px, 5vw, 52px); line-height: 1; margin-top: 0; }
 .legal-card h2 { margin-top: 34px; font-size: 24px; }
-.legal-card a { color: #0284c7; font-weight: 800; }
+.legal-card a { color: var(--cyan-soft); font-weight: 800; }
 .muted { color: var(--muted); }
 
 .notice { border-left: 4px solid var(--cyan); padding: 14px 16px; background: rgba(0,229,255,.08); border-radius: 14px; }
