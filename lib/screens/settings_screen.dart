@@ -3,7 +3,6 @@ import 'package:hive_ce_flutter/hive_flutter.dart';
 
 import '../services/rest_sound_player.dart';
 import 'help_screen.dart';
-import 'history_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -68,19 +67,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => const HelpScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 14),
-                _SettingsSection(
-                  title: 'History',
-                  child: _HistoryTile(
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const HistoryScreen(),
                         ),
                       );
                     },
@@ -242,81 +228,6 @@ class _HelpTile extends StatelessWidget {
                   SizedBox(height: 2),
                   Text(
                     'Kurze Erklärung zu Plan, Workout und History',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Color(0xFF8A93A3),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: Color(0xFF7DD3FC),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _HistoryTile extends StatelessWidget {
-  const _HistoryTile({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(22),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFF050A0F),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(
-            color: const Color(0xFF00E5FF).withValues(alpha: 0.12),
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                color: const Color(0xFF00E5FF).withValues(alpha: 0.09),
-                border: Border.all(
-                  color: const Color(0xFF00E5FF).withValues(alpha: 0.22),
-                ),
-              ),
-              child: const Icon(
-                Icons.menu_book_rounded,
-                color: Color(0xFF7DD3FC),
-              ),
-            ),
-            const SizedBox(width: 13),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'History',
-                    style: TextStyle(
-                      color: Color(0xFFEAF2F4),
-                      fontSize: 15,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    'Trainingstage, Übungen, Gewicht und Wiederholungen',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(

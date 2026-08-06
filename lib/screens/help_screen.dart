@@ -71,7 +71,7 @@ class HelpScreen extends StatelessWidget {
               icon: Icons.menu_book_rounded,
               title: 'History',
               items: [
-                'In Settings > History findest du deine abgeschlossenen Workouts.',
+                'Über das Buchsymbol oben rechts findest du deine abgeschlossenen Workouts.',
                 'Gespeichert werden Datum, Trainingstag, Übungen, Gewicht und Wiederholungen.',
                 'So kannst du später sehen, wie du dich entwickelt hast.',
               ],
@@ -81,7 +81,7 @@ class HelpScreen extends StatelessWidget {
               icon: Icons.settings_rounded,
               title: 'Settings',
               items: [
-                'Hier findest du History, Help und den Satzpausen-Ton.',
+                'Hier findest du Help und die Einstellungen für den Satzpausen-Ton.',
                 'Du kannst den Ton aktivieren, deaktivieren oder eine eigene Sound-Datei verwenden.',
               ],
             ),

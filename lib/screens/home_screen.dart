@@ -4,6 +4,7 @@ import 'package:hive_ce_flutter/hive_flutter.dart';
 import '../models/exercise.dart';
 import '../models/workout_plan.dart';
 import '../widgets/body_strength_map.dart';
+import 'history_screen.dart';
 import 'plan_builder_screen.dart';
 import 'settings_screen.dart';
 import 'workout_start_screen.dart';
@@ -346,11 +347,15 @@ class HomeScreen extends StatelessWidget {
           SizedBox(
             width: 48,
             height: 48,
-            child: _AchievementsButton(
+            child: _HistoryButton(
               accentColor: accentColor,
               isDepleted: isDepleted,
               onTap: () {
-                _openPlaceholder(context, 'Achievements');
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const HistoryScreen(),
+                  ),
+                );
               },
             ),
           ),
@@ -771,11 +776,6 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  void _openPlaceholder(BuildContext context, String title) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => _PlaceholderScreen(title: title)));
-  }
 }
 
 class _TodayWorkoutData {
@@ -906,8 +906,8 @@ class _HeaderIconButton extends StatelessWidget {
   }
 }
 
-class _AchievementsButton extends StatelessWidget {
-  const _AchievementsButton({
+class _HistoryButton extends StatelessWidget {
+  const _HistoryButton({
     required this.onTap,
     required this.accentColor,
     required this.isDepleted,
@@ -920,7 +920,7 @@ class _AchievementsButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _CircleIconButtonShell(
-      icon: Icons.emoji_events_rounded,
+      icon: Icons.menu_book_rounded,
       onTap: onTap,
       accentColor: accentColor,
       isDepleted: isDepleted,
@@ -1222,35 +1222,6 @@ class _NeonActionButton extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PlaceholderScreen extends StatelessWidget {
-  const _PlaceholderScreen({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF050A0F),
-      appBar: AppBar(
-        title: Text(title, textAlign: TextAlign.center),
-        centerTitle: true,
-        backgroundColor: const Color(0xFF050A0F),
-      ),
-      body: Center(
-        child: Text(
-          title,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w900,
-            color: Color(0xFFEAF2F4),
           ),
         ),
       ),
